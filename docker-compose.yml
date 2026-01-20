@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nodeloc-faka-backend
+    restart: unless-stopped
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - NODELOC_CLIENT_ID=${NODELOC_CLIENT_ID}
+      - NODELOC_CLIENT_SECRET=${NODELOC_CLIENT_SECRET}
+      - NODELOC_REDIRECT_URI=${NODELOC_REDIRECT_URI}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - PAYMENT_ID=${PAYMENT_ID}
+      - PAYMENT_SECRET=${PAYMENT_SECRET}
+      - PAYMENT_CALLBACK_URI=${PAYMENT_CALLBACK_URI}
+      - SERVER_PORT=8080
+    networks:
+      - faka-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nodeloc-faka-frontend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:80"
+    depends_on:
+      - backend
+    networks:
+      - faka-network
+
+networks:
+  faka-network:
+    driver: bridge

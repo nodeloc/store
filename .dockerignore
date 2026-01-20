@@ -1,0 +1,39 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# 环境配置
+.env
+*.env.local
+
+# 日志
+*.log
+logs/
+
+# 临时文件
+tmp/
+temp/
+
+# 构建产物
+faka
+*.exe
+*.dll
+
+# 文档
+*.md
+!README.md
+
+# 测试
+*_test.go
+test/
+tests/
+
+# 其他
+.DS_Store
+Thumbs.db
