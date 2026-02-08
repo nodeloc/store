@@ -1,0 +1,108 @@
+# ╔════════════════════════════════════════════════════════════╗
+# ║   Docker Compose 生产环境配置 - 使用 Docker Hub 镜像        ║
+# ╚════════════════════════════════════════════════════════════╝
+# 
+# 使用方式：
+# 1. 复制 .env.production 为 .env 并修改配置
+# 2. 运行: docker-compose -f docker-compose.prod.yml up -d
+#
+# 注意：此配置文件使用预构建的 Docker Hub 镜像，无需本地构建
+
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: nodeloc-faka-mysql
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME:-faka}
+      - MYSQL_USER=${DB_USER:-faka}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - TZ=Asia/Shanghai
+    ports:
+      - "127.0.0.1:${DB_PORT:-3306}:3306"  # 仅本地访问
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: 
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_connections=1000
+      - --innodb_buffer_pool_size=256M
+    networks:
+      - faka-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Backend API - 使用 Docker Hub 镜像
+  backend:
+    image: ${DOCKER_IMAGE_BACKEND:-nodeloc/faka-backend:latest}
+    container_name: nodeloc-faka-backend
+    restart: unless-stopped
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=${DB_USER:-faka}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME:-faka}
+      - NODELOC_URL=${NODELOC_URL:-https://www.nodeloc.com}
+      - NODELOC_CLIENT_ID=${NODELOC_CLIENT_ID}
+      - NODELOC_CLIENT_SECRET=${NODELOC_CLIENT_SECRET}
+      - NODELOC_REDIRECT_URI=${NODELOC_REDIRECT_URI}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - PAYMENT_ID=${PAYMENT_ID}
+      - PAYMENT_SECRET=${PAYMENT_SECRET}
+      - PAYMENT_CALLBACK_URI=${PAYMENT_CALLBACK_URI}
+      - SERVER_PORT=8080
+      - GIN_MODE=release
+      - TZ=Asia/Shanghai
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - faka-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+  
+  # Frontend - 使用 Docker Hub 镜像
+  frontend:
+    image: ${DOCKER_IMAGE_FRONTEND:-nodeloc/faka-frontend:latest}
+    container_name: nodeloc-faka-frontend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:80"
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - faka-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mysql_data:
+    driver: local
+  uploads:
+    driver: local
+
+networks:
+  faka-network:
+    driver: bridge

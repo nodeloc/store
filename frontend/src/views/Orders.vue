@@ -1,90 +1,106 @@
 <template>
-  <div class="max-w-4xl mx-auto space-y-6">
-    <h1 class="text-3xl font-bold text-zinc-900">我的订单</h1>
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <h1 class="text-2xl sm:text-3xl font-bold text-zinc-900">我的订单</h1>
     
     <!-- Loading -->
-    <div v-if="loading" class="flex justify-center py-16">
-      <Loader2 class="w-8 h-8 animate-spin text-zinc-400" />
+    <div v-if="loading" class="flex flex-col items-center justify-center py-20 gap-3">
+      <Loader2 class="w-8 h-8 animate-spin text-brand-green" />
+      <span class="text-sm text-zinc-400">加载中...</span>
     </div>
     
-    <!-- Orders Table -->
-    <div v-else-if="orders.length > 0" class="bg-white border border-zinc-100 rounded-lg overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead class="bg-zinc-50 border-b border-zinc-100">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">订单号</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">商品</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">金额</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">状态</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">时间</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">操作</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-zinc-100">
-            <tr v-for="order in orders" :key="order.id" class="hover:bg-zinc-50 transition">
-              <td class="px-6 py-4 whitespace-nowrap">
-                <code class="text-sm font-mono text-zinc-900 bg-zinc-50 px-2 py-1 rounded">{{ order.order_no }}</code>
-              </td>
-              <td class="px-6 py-4">
-                <div class="text-sm text-zinc-900">{{ order.product.name }}</div>
-                <div class="text-xs text-zinc-500">x {{ order.quantity }}</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span class="text-sm font-mono font-semibold text-zinc-900">{{ formatPrice(order.total_amount) }}</span>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <span
-                  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                  :class="getStatusClass(order.status)"
-                >
-                  <component :is="getStatusIcon(order.status)" class="w-3 h-3 mr-1" />
-                  {{ getStatusText(order.status) }}
-                </span>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
-                {{ formatDate(order.created_at, 'MM-DD HH:mm') }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <router-link
-                  :to="`/order/${order.order_no}`"
-                  class="inline-flex items-center space-x-1 text-sm text-zinc-600 hover:text-zinc-900"
-                >
-                  <span>查看</span>
-                  <ChevronRight class="w-4 h-4" />
-                </router-link>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <!-- Orders -->
+    <template v-else-if="orders.length > 0">
+      <!-- Desktop Table -->
+      <div class="hidden md:block bg-white rounded-2xl border border-zinc-100 shadow-card overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-zinc-50/80 border-b border-zinc-100">
+              <tr>
+                <th class="px-5 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wider">订单号</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wider">商品</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wider">金额</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wider">状态</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold text-zinc-400 uppercase tracking-wider">时间</th>
+                <th class="px-5 py-3 text-right text-xs font-semibold text-zinc-400 uppercase tracking-wider">操作</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-100">
+              <tr v-for="order in orders" :key="order.id" class="hover:bg-zinc-50/50 transition">
+                <td class="px-5 py-4 whitespace-nowrap">
+                  <code class="text-xs font-mono text-zinc-700 bg-zinc-100 px-2 py-1 rounded-lg">{{ order.order_no }}</code>
+                </td>
+                <td class="px-5 py-4">
+                  <div class="text-sm font-medium text-zinc-900">{{ order.product?.name }}</div>
+                  <div class="text-xs text-zinc-400">× {{ order.quantity }}</div>
+                </td>
+                <td class="px-5 py-4 whitespace-nowrap">
+                  <span class="text-sm font-bold font-mono text-zinc-900">{{ formatPrice(order.total_amount) }}</span>
+                </td>
+                <td class="px-5 py-4 whitespace-nowrap">
+                  <span :class="['inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium', getStatusClass(order.status)]">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="getStatusDot(order.status)"></span>
+                    {{ getStatusText(order.status) }}
+                  </span>
+                </td>
+                <td class="px-5 py-4 whitespace-nowrap text-sm text-zinc-400 font-mono">
+                  {{ formatDate(order.created_at, 'MM-DD HH:mm') }}
+                </td>
+                <td class="px-5 py-4 whitespace-nowrap text-right">
+                  <router-link :to="`/order/${order.order_no}`" class="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-brand-green transition-colors">
+                    <span>查看</span>
+                    <ChevronRight class="w-4 h-4" />
+                  </router-link>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <Pagination
+          :current-page="currentPage"
+          :total-pages="totalPages"
+          :total="total"
+          :page-size="pageSize"
+          @change="handlePageChange"
+        />
       </div>
-      
-      <!-- Pagination -->
-      <Pagination
-        :current-page="currentPage"
-        :total-pages="totalPages"
-        :total="total"
-        :page-size="pageSize"
-        @change="handlePageChange"
-      />
-    </div>
+
+      <!-- Mobile Cards -->
+      <div class="md:hidden space-y-3">
+        <router-link
+          v-for="order in orders"
+          :key="'m-' + order.id"
+          :to="`/order/${order.order_no}`"
+          class="block bg-white rounded-2xl border border-zinc-100 shadow-card p-4 hover:border-zinc-200 transition-all"
+        >
+          <div class="flex items-start justify-between gap-3 mb-3">
+            <div class="min-w-0">
+              <div class="text-sm font-semibold text-zinc-900 truncate">{{ order.product?.name }}</div>
+              <code class="text-xs font-mono text-zinc-400">{{ order.order_no }}</code>
+            </div>
+            <span :class="['inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium flex-shrink-0', getStatusClass(order.status)]">
+              <span class="w-1.5 h-1.5 rounded-full" :class="getStatusDot(order.status)"></span>
+              {{ getStatusText(order.status) }}
+            </span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-lg font-bold font-mono text-zinc-900">{{ formatPrice(order.total_amount) }}</span>
+            <span class="text-xs text-zinc-400 font-mono">{{ formatDate(order.created_at, 'MM-DD HH:mm') }}</span>
+          </div>
+        </router-link>
+      </div>
+    </template>
     
     <!-- Empty State -->
-    <div v-else class="text-center py-16 space-y-4">
-      <div class="flex justify-center">
-        <div class="w-24 h-24 bg-zinc-50 rounded-full flex items-center justify-center">
-          <PackageOpen class="w-12 h-12 text-zinc-400" />
-        </div>
+    <div v-else class="flex flex-col items-center justify-center py-20 space-y-4">
+      <div class="w-20 h-20 rounded-3xl bg-brand-gradient-subtle flex items-center justify-center">
+        <PackageOpen class="w-10 h-10 text-brand-green/50" />
       </div>
-      <div class="space-y-2">
-        <h3 class="text-xl font-semibold text-zinc-900">暂无订单</h3>
-        <p class="text-zinc-600">您还没有购买任何商品</p>
+      <div class="text-center space-y-1.5">
+        <h3 class="text-lg font-semibold text-zinc-900">暂无订单</h3>
+        <p class="text-sm text-zinc-500">您还没有购买任何商品</p>
       </div>
-      <router-link
-        to="/"
-        class="inline-flex items-center justify-center space-x-2 px-6 py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition"
-      >
-        <ShoppingCart class="w-5 h-5" />
+      <router-link to="/" class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-gradient text-white text-sm font-medium rounded-xl hover:shadow-glow transition-all duration-300">
+        <ShoppingCart class="w-4 h-4" />
         <span>去购物</span>
       </router-link>
     </div>
@@ -93,7 +109,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { PackageOpen, ShoppingCart, ChevronRight, Loader2, Clock, CreditCard, CheckCircle, XCircle } from 'lucide-vue-next'
+import { PackageOpen, ShoppingCart, ChevronRight, Loader2 } from 'lucide-vue-next'
 import Pagination from '@/components/Pagination.vue'
 import api from '@/utils/api'
 import { formatPrice, formatDate } from '@/utils/helpers'
@@ -105,19 +121,12 @@ const pageSize = ref(20)
 const total = ref(0)
 const totalPages = computed(() => Math.ceil(total.value / pageSize.value))
 
-onMounted(() => {
-  fetchOrders()
-})
+onMounted(() => { fetchOrders() })
 
 async function fetchOrders() {
   try {
     loading.value = true
-    const response = await api.get('/api/orders', {
-      params: {
-        page: currentPage.value,
-        page_size: pageSize.value
-      }
-    })
+    const response = await api.get('/api/orders', { params: { page: currentPage.value, page_size: pageSize.value } })
     orders.value = response.data.orders || response.data || []
     total.value = response.data.total || orders.value.length
   } catch (error) {
@@ -127,38 +136,15 @@ async function fetchOrders() {
   }
 }
 
-function handlePageChange(page) {
-  currentPage.value = page
-  fetchOrders()
-}
+function handlePageChange(page) { currentPage.value = page; fetchOrders() }
 
-function getStatusClass(status) {
-  switch (status) {
-    case 0: return 'bg-yellow-100 text-yellow-800'
-    case 1: return 'bg-blue-100 text-blue-800'
-    case 2: return 'bg-green-100 text-green-800'
-    case 3: return 'bg-zinc-100 text-zinc-600'
-    default: return 'bg-zinc-100 text-zinc-600'
-  }
+function getStatusClass(s) {
+  return [null, 'bg-amber-50 text-amber-700', 'bg-blue-50 text-blue-700', 'bg-emerald-50 text-emerald-700', 'bg-zinc-100 text-zinc-500'][s + 1] || 'bg-zinc-100 text-zinc-500'
 }
-
-function getStatusIcon(status) {
-  switch (status) {
-    case 0: return Clock
-    case 1: return CreditCard
-    case 2: return CheckCircle
-    case 3: return XCircle
-    default: return XCircle
-  }
+function getStatusDot(s) {
+  return [null, 'bg-amber-500', 'bg-blue-500', 'bg-emerald-500', 'bg-zinc-400'][s + 1] || 'bg-zinc-400'
 }
-
-function getStatusText(status) {
-  switch (status) {
-    case 0: return '待支付'
-    case 1: return '已支付'
-    case 2: return '已完成'
-    case 3: return '已取消'
-    default: return '未知'
-  }
+function getStatusText(s) {
+  return ['待支付', '已支付', '已完成', '已取消'][s] || '未知'
 }
 </script>

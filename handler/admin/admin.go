@@ -485,6 +485,7 @@ func (h *AdminHandler) GetSettings(c *gin.Context) {
 		"site_name":             h.settingService.Get(services.SettingSiteName),
 		"site_description":      h.settingService.Get(services.SettingSiteDescription),
 		"footer_text":           h.settingService.Get(services.SettingFooterText),
+		"announcement":          h.settingService.Get(services.SettingAnnouncement),
 		"nodeloc_client_id":     h.settingService.Get(services.SettingNodeLocClientID),
 		"nodeloc_client_secret": h.settingService.Get(services.SettingNodeLocClientSecret),
 		"nodeloc_redirect_uri":  h.settingService.Get(services.SettingNodeLocRedirectURI),

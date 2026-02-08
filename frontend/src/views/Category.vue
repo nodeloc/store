@@ -1,45 +1,56 @@
 <template>
-  <div class="space-y-8">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
     <!-- Loading -->
-    <div v-if="loading" class="flex justify-center py-16">
-      <Loader2 class="w-8 h-8 animate-spin text-zinc-400" />
+    <div v-if="loading" class="flex flex-col items-center justify-center py-20 gap-3">
+      <Loader2 class="w-8 h-8 animate-spin text-brand-green" />
+      <span class="text-sm text-zinc-400">加载中...</span>
     </div>
     
     <template v-else-if="category">
       <!-- Category Header -->
-      <div class="space-y-2">
-        <router-link to="/" class="inline-flex items-center space-x-2 text-sm text-zinc-600 hover:text-zinc-900 mb-4">
+      <div class="space-y-3">
+        <router-link to="/" class="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-brand-green transition-colors">
           <ArrowLeft class="w-4 h-4" />
           <span>返回首页</span>
         </router-link>
-        <h1 class="text-4xl font-bold text-zinc-900">{{ category.name }}</h1>
-        <p v-if="category.description" class="text-lg text-zinc-600">{{ category.description }}</p>
+        <h1 class="text-2xl sm:text-3xl font-bold text-zinc-900">{{ category.name }}</h1>
+        <p v-if="category.description" class="text-base text-zinc-500 leading-relaxed">{{ category.description }}</p>
       </div>
       
       <!-- Products Grid -->
-      <div v-if="products.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div v-if="products.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 stagger-in">
         <router-link
           v-for="product in products"
           :key="product.id"
           :to="`/product/${product.id}`"
-          class="group block bg-white border border-zinc-100 rounded-lg hover:border-zinc-200 hover:shadow-md transition-all"
+          class="product-card group"
         >
-          <div class="p-6 space-y-4">
-            <div class="flex items-center justify-center w-12 h-12 bg-zinc-50 rounded-lg group-hover:bg-zinc-100 transition">
-              <Package class="w-6 h-6 text-zinc-600" />
+          <div class="p-5 sm:p-6 space-y-4">
+            <div class="w-12 h-12 rounded-2xl bg-brand-gradient-subtle flex items-center justify-center group-hover:bg-brand-gradient-hover transition-colors">
+              <Package class="w-6 h-6 text-brand-green/70" />
             </div>
-            <div class="space-y-2">
-              <h3 class="text-lg font-semibold text-zinc-900 group-hover:text-zinc-700">{{ product.name }}</h3>
-              <p v-if="product.description" class="text-sm text-zinc-600 line-clamp-2">{{ product.description }}</p>
+            <div class="space-y-1.5">
+              <h3 class="text-base font-semibold text-zinc-900 group-hover:text-brand-green transition-colors">{{ product.name }}</h3>
+              <p v-if="product.description" class="text-sm text-zinc-500 line-clamp-2 leading-relaxed">{{ product.description }}</p>
             </div>
-            <div class="flex items-center justify-between pt-4 border-t border-zinc-100">
+            <div class="flex items-end justify-between pt-4 border-t border-zinc-100/80">
               <div class="space-y-1">
-                <div class="text-2xl font-bold text-zinc-900">{{ formatPrice(product.price) }}</div>
-                <div class="text-xs text-zinc-500">库存: {{ product.stock_count }}</div>
+                <div class="text-xl font-bold text-zinc-900 font-mono tracking-tight">{{ formatPrice(product.price) }}</div>
+                <div
+                  :class="[
+                    'inline-flex items-center gap-1 text-xs font-medium',
+                    product.stock_count > 0 ? 'text-zinc-400' : 'text-red-500'
+                  ]"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full" :class="[
+                    product.stock_count > 10 ? 'bg-emerald-500' : product.stock_count > 0 ? 'bg-amber-500' : 'bg-red-500'
+                  ]"></span>
+                  库存: {{ product.stock_count }}
+                </div>
               </div>
-              <div class="flex items-center space-x-1 text-sm text-zinc-600 group-hover:text-zinc-900">
+              <div class="flex items-center gap-1 text-sm text-zinc-400 group-hover:text-brand-green transition-colors">
                 <span>购买</span>
-                <ChevronRight class="w-4 h-4" />
+                <ArrowUpRight class="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </div>
             </div>
           </div>
@@ -47,21 +58,19 @@
       </div>
       
       <!-- Empty State -->
-      <div v-else class="text-center py-16 space-y-4">
-        <div class="flex justify-center">
-          <div class="w-24 h-24 bg-zinc-50 rounded-full flex items-center justify-center">
-            <PackageOpen class="w-12 h-12 text-zinc-400" />
-          </div>
+      <div v-else class="flex flex-col items-center justify-center py-20 space-y-4">
+        <div class="w-20 h-20 rounded-3xl bg-brand-gradient-subtle flex items-center justify-center">
+          <PackageOpen class="w-10 h-10 text-brand-green/50" />
         </div>
-        <div class="space-y-2">
-          <h3 class="text-xl font-semibold text-zinc-900">该分类下暂无商品</h3>
-          <p class="text-zinc-600">请查看其他分类</p>
+        <div class="text-center space-y-1.5">
+          <h3 class="text-lg font-semibold text-zinc-900">该分类下暂无商品</h3>
+          <p class="text-sm text-zinc-500">请查看其他分类</p>
         </div>
         <router-link
           to="/"
-          class="inline-flex items-center space-x-2 px-6 py-3 bg-zinc-900 text-white font-medium rounded-lg hover:bg-zinc-800 transition"
+          class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-gradient text-white text-sm font-medium rounded-xl hover:shadow-glow transition-all duration-300"
         >
-          <ArrowLeft class="w-5 h-5" />
+          <ArrowLeft class="w-4 h-4" />
           <span>返回首页</span>
         </router-link>
       </div>
@@ -72,7 +81,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { Package, PackageOpen, ChevronRight, ArrowLeft, Loader2 } from 'lucide-vue-next'
+import { Package, PackageOpen, ArrowUpRight, ArrowLeft, Loader2 } from 'lucide-vue-next'
 import api from '@/utils/api'
 import { formatPrice } from '@/utils/helpers'
 

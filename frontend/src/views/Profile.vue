@@ -1,86 +1,88 @@
 <template>
-  <div class="max-w-4xl mx-auto space-y-8">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
     <!-- Loading -->
-    <div v-if="loading" class="flex justify-center py-16">
-      <Loader2 class="w-8 h-8 animate-spin text-zinc-400" />
+    <div v-if="loading" class="flex flex-col items-center justify-center py-20 gap-3">
+      <Loader2 class="w-8 h-8 animate-spin text-brand-green" />
+      <span class="text-sm text-zinc-400">加载中...</span>
     </div>
     
     <template v-else-if="user">
       <!-- Profile Header -->
-      <div class="bg-gradient-to-br from-zinc-50 to-zinc-100 border border-zinc-200 rounded-lg p-8">
-        <div class="flex items-center space-x-6">
-          <img :src="user.avatar_url" alt="" class="w-24 h-24 rounded-full border-4 border-white shadow-lg">
-          <div class="flex-1 space-y-2">
-            <h1 class="text-3xl font-bold text-zinc-900">{{ user.name }}</h1>
-            <div class="flex items-center space-x-4 text-sm text-zinc-600">
-              <span class="flex items-center space-x-1">
-                <AtSign class="w-4 h-4" />
-                <span>{{ user.username }}</span>
-              </span>
-              <span class="flex items-center space-x-1">
-                <Shield class="w-4 h-4" />
-                <span>信任等级 {{ user.trust_level }}</span>
-              </span>
-              <span v-if="user.email" class="flex items-center space-x-1">
-                <Mail class="w-4 h-4" />
-                <span>{{ user.email }}</span>
-              </span>
+      <div class="bg-white rounded-2xl border border-zinc-100 shadow-card overflow-hidden">
+        <div class="h-20 sm:h-28 bg-brand-gradient"></div>
+        <div class="px-5 sm:px-8 pb-6 -mt-10 sm:-mt-12">
+          <div class="flex flex-col sm:flex-row sm:items-end gap-4">
+            <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white border-4 border-white shadow-lg overflow-hidden flex-shrink-0">
+              <img v-if="user.avatar_url" :src="user.avatar_url" alt="" class="w-full h-full object-cover" />
+              <div v-else class="w-full h-full bg-brand-gradient flex items-center justify-center text-white text-2xl font-bold">
+                {{ user.name?.charAt(0)?.toUpperCase() || 'U' }}
+              </div>
+            </div>
+            <div class="flex-1 min-w-0 space-y-1">
+              <h1 class="text-xl sm:text-2xl font-bold text-zinc-900">{{ user.name }}</h1>
+              <div class="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
+                <span class="flex items-center gap-1">
+                  <AtSign class="w-3.5 h-3.5" />
+                  {{ user.username }}
+                </span>
+                <span class="flex items-center gap-1">
+                  <Shield class="w-3.5 h-3.5" />
+                  信任等级 {{ user.trust_level }}
+                </span>
+                <span v-if="user.email" class="flex items-center gap-1">
+                  <Mail class="w-3.5 h-3.5" />
+                  {{ user.email }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
       
       <!-- Stats -->
-      <div class="grid grid-cols-3 gap-6">
-        <div class="bg-white border border-zinc-100 rounded-lg p-6 text-center space-y-2">
-          <div class="text-4xl font-bold font-mono text-zinc-900">{{ orders.length }}</div>
-          <div class="text-sm text-zinc-500 uppercase tracking-wide">订单总数</div>
+      <div class="grid grid-cols-3 gap-3 sm:gap-4">
+        <div class="bg-white rounded-2xl border border-zinc-100 shadow-card p-4 sm:p-6 text-center space-y-1">
+          <div class="text-2xl sm:text-3xl font-bold font-mono text-zinc-900">{{ orders.length }}</div>
+          <div class="text-xs text-zinc-400 uppercase tracking-wider">订单总数</div>
         </div>
-        <div class="bg-white border border-zinc-100 rounded-lg p-6 text-center space-y-2">
-          <div class="text-4xl font-bold font-mono text-zinc-900">{{ formatPrice(user.balance) }}</div>
-          <div class="text-sm text-zinc-500 uppercase tracking-wide">账户余额</div>
+        <div class="bg-white rounded-2xl border border-zinc-100 shadow-card p-4 sm:p-6 text-center space-y-1">
+          <div class="text-2xl sm:text-3xl font-bold font-mono text-zinc-900">{{ formatPrice(user.balance) }}</div>
+          <div class="text-xs text-zinc-400 uppercase tracking-wider">账户余额</div>
         </div>
-        <div class="bg-white border border-zinc-100 rounded-lg p-6 text-center space-y-2">
-          <div class="text-4xl font-bold font-mono text-zinc-900">{{ user.trust_level }}</div>
-          <div class="text-sm text-zinc-500 uppercase tracking-wide">信任等级</div>
+        <div class="bg-white rounded-2xl border border-zinc-100 shadow-card p-4 sm:p-6 text-center space-y-1">
+          <div class="text-2xl sm:text-3xl font-bold font-mono text-zinc-900">{{ user.trust_level }}</div>
+          <div class="text-xs text-zinc-400 uppercase tracking-wider">信任等级</div>
         </div>
       </div>
       
       <!-- Recent Orders -->
-      <div class="bg-white border border-zinc-100 rounded-lg overflow-hidden">
-        <div class="px-6 py-4 bg-zinc-50 border-b border-zinc-100 flex items-center justify-between">
-          <h2 class="text-sm font-medium text-zinc-900 uppercase tracking-wide">最近订单</h2>
-          <router-link to="/orders" class="text-sm text-zinc-600 hover:text-zinc-900 flex items-center space-x-1">
+      <div class="bg-white rounded-2xl border border-zinc-100 shadow-card overflow-hidden">
+        <div class="px-5 sm:px-6 py-4 border-b border-zinc-100 bg-zinc-50/50 flex items-center justify-between">
+          <h2 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">最近订单</h2>
+          <router-link to="/orders" class="text-xs text-zinc-500 hover:text-brand-green flex items-center gap-1 transition-colors">
             <span>查看全部</span>
-            <ArrowRight class="w-4 h-4" />
+            <ArrowRight class="w-3.5 h-3.5" />
           </router-link>
         </div>
         <div class="divide-y divide-zinc-100">
           <template v-if="orders.length > 0">
-            <div
-              v-for="(order, index) in orders.slice(0, 5)"
+            <router-link
+              v-for="order in orders.slice(0, 5)"
               :key="order.id"
-              class="px-6 py-4 flex items-center justify-between hover:bg-zinc-50 transition"
+              :to="`/order/${order.order_no}`"
+              class="flex items-center justify-between px-5 sm:px-6 py-4 hover:bg-zinc-50/50 transition-colors"
             >
-              <div class="space-y-1">
-                <div class="font-medium text-zinc-900">{{ order.product.name }}</div>
-                <div class="text-sm text-zinc-500 font-mono">{{ formatDate(order.created_at, 'YYYY-MM-DD HH:mm') }}</div>
+              <div class="space-y-0.5 min-w-0">
+                <div class="text-sm font-medium text-zinc-900 truncate">{{ order.product?.name }}</div>
+                <div class="text-xs text-zinc-400 font-mono">{{ formatDate(order.created_at, 'YYYY-MM-DD HH:mm') }}</div>
               </div>
-              <div class="flex items-center space-x-4">
-                <div class="text-right">
-                  <div class="font-mono font-semibold text-zinc-900">{{ formatPrice(order.total_amount) }}</div>
-                </div>
-                <router-link
-                  :to="`/order/${order.order_no}`"
-                  class="text-sm text-zinc-600 hover:text-zinc-900 flex items-center space-x-1"
-                >
-                  <span>查看</span>
-                  <ChevronRight class="w-4 h-4" />
-                </router-link>
+              <div class="flex items-center gap-3 flex-shrink-0">
+                <span class="text-sm font-bold font-mono text-zinc-900">{{ formatPrice(order.total_amount) }}</span>
+                <ChevronRight class="w-4 h-4 text-zinc-300" />
               </div>
-            </div>
+            </router-link>
           </template>
-          <div v-else class="px-6 py-12 text-center text-zinc-500">
+          <div v-else class="px-6 py-12 text-center text-sm text-zinc-400">
             暂无订单
           </div>
         </div>
@@ -108,7 +110,7 @@ onMounted(async () => {
       api.get('/api/orders')
     ])
     user.value = userRes.data.user
-    orders.value = ordersRes.data
+    orders.value = ordersRes.data.orders || ordersRes.data || []
   } catch (error) {
     console.error('Failed to load profile', error)
   } finally {

@@ -4,13 +4,13 @@ import { useAuthStore } from '@/stores/auth'
 const routes = [
   {
     path: '/',
-    name: 'Home',
-    component: () => import('@/views/HomeNew.vue')
-  },
-  {
-    path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
     children: [
+      {
+        path: '',
+        name: 'Home',
+        component: () => import('@/views/HomeNew.vue')
+      },
       {
         path: 'category/:id',
         name: 'Category',
@@ -110,20 +110,16 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   
-  // If route requires authentication or admin, try to fetch user info first
   if (to.meta.requiresAuth || to.meta.requiresAdmin) {
-    // If user is not loaded, try to fetch from session
     if (!authStore.user) {
       try {
         await authStore.fetchUser()
       } catch (error) {
-        // User is not logged in, redirect to login
         next({ name: 'Login', query: { redirect: to.fullPath } })
         return
       }
     }
     
-    // Check if route requires admin
     if (to.meta.requiresAdmin && !authStore.isAdmin) {
       next({ name: 'Home' })
       return

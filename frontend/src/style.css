@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,7 +6,69 @@
 
 @layer base {
   body {
-    @apply font-sans;
+    @apply font-sans antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Better text rendering */
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  /* Glass morphism header */
+  .glass-header {
+    @apply bg-white/80 backdrop-blur-xl border-b border-zinc-200/60;
+  }
+
+  /* Brand gradient text */
+  .text-gradient {
+    background: linear-gradient(135deg, #009966 0%, #FF9933 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Brand gradient border */
+  .border-gradient {
+    position: relative;
+  }
+  .border-gradient::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, #009966, #FF9933);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Product card */
+  .product-card {
+    @apply bg-white rounded-2xl border border-zinc-100 overflow-hidden transition-all duration-300;
+    @apply hover:shadow-card-hover hover:-translate-y-1 hover:border-zinc-200;
+  }
+
+  /* Category pill active */
+  .cat-pill-active {
+    background: linear-gradient(135deg, #009966 0%, #FF9933 100%);
+    @apply text-white shadow-sm;
+  }
+
+  /* Sidebar category active */
+  .cat-sidebar-active {
+    background: linear-gradient(135deg, #009966 0%, #FF9933 100%);
+    @apply text-white shadow-sm;
   }
 }
 
@@ -37,7 +99,7 @@
   }
   
   .fade-in {
-    animation: fadeIn 0.5s ease-in;
+    animation: fadeIn 0.5s ease-out;
   }
   
   @keyframes fadeIn {
@@ -53,10 +115,24 @@
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
   }
+
+  /* Stagger children animation */
+  .stagger-in > * {
+    animation: fadeIn 0.5s ease-out both;
+  }
+  .stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger-in > *:nth-child(2) { animation-delay: 60ms; }
+  .stagger-in > *:nth-child(3) { animation-delay: 120ms; }
+  .stagger-in > *:nth-child(4) { animation-delay: 180ms; }
+  .stagger-in > *:nth-child(5) { animation-delay: 240ms; }
+  .stagger-in > *:nth-child(6) { animation-delay: 300ms; }
+  .stagger-in > *:nth-child(7) { animation-delay: 360ms; }
+  .stagger-in > *:nth-child(8) { animation-delay: 420ms; }
+  .stagger-in > *:nth-child(9) { animation-delay: 480ms; }
 }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 .font-mono {
@@ -84,4 +160,26 @@ body {
 .toast-leave-to {
   transform: translateY(5rem);
   opacity: 0;
+}
+
+/* Hide scrollbar for horizontal category tabs */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Dropdown menu animation */
+.dropdown-enter-active {
+  transition: all 0.2s ease-out;
+}
+.dropdown-leave-active {
+  transition: all 0.15s ease-in;
+}
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.97);
 }

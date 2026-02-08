@@ -1,121 +1,169 @@
 <template>
-  <div class="min-h-screen bg-zinc-50 flex flex-col">
-    <!-- Header -->
-    <div class="bg-white border-b border-zinc-200 sticky top-0 z-10 shadow-sm">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex items-center justify-between h-16">
-          <div class="flex items-center space-x-8">
-            <router-link to="/" class="flex items-center space-x-2">
-              <div class="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center">
-                <span class="text-white font-bold text-sm">NL</span>
-              </div>
-              <span class="text-lg font-bold text-zinc-900">{{ settings.site_name || 'NodeLoc 社区发卡' }}</span>
-            </router-link>
+  <div>
+    <!-- Info Bar -->
+    <div v-if="!loading && (settings.announcement || settings.site_description)" class="bg-white border-b border-zinc-100">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+        <div class="flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <p v-if="settings.announcement" class="text-sm text-amber-700 bg-amber-50 px-3 py-1 rounded-lg truncate">
+              <span class="font-medium">📢</span> {{ settings.announcement }}
+            </p>
+            <p v-else-if="settings.site_description" class="text-sm text-zinc-500 truncate sm:hidden">
+              {{ settings.site_description }}
+            </p>
           </div>
-          <div class="flex items-center space-x-6">
-            <template v-if="authStore.isAuthenticated">
-              <router-link to="/orders" class="text-sm font-medium text-zinc-600 hover:text-zinc-900 transition">我的订单</router-link>
-              <router-link v-if="authStore.isAdmin" to="/admin" class="text-sm font-medium text-zinc-600 hover:text-zinc-900 transition">管理后台</router-link>
-              <button @click="handleLogout" class="text-sm font-medium text-zinc-600 hover:text-zinc-900 transition">退出</button>
-            </template>
-            <router-link v-else to="/login" class="inline-flex items-center px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition">
-              登录
-            </router-link>
+          <div class="hidden sm:flex items-center gap-4 flex-shrink-0">
+            <div class="flex items-center gap-1.5 text-sm text-zinc-400">
+              <Package class="w-3.5 h-3.5 text-brand-green" />
+              <span><strong class="text-zinc-700 font-semibold">{{ totalProducts }}</strong> 件商品</span>
+            </div>
+            <div class="w-px h-3 bg-zinc-200"></div>
+            <div class="flex items-center gap-1.5 text-sm text-zinc-400">
+              <Grid3X3 class="w-3.5 h-3.5 text-brand-orange" />
+              <span><strong class="text-zinc-700 font-semibold">{{ categories.length }}</strong> 个分类</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
+    <!-- Mobile Category Tabs -->
+    <div class="lg:hidden bg-white/80 backdrop-blur-sm border-b border-zinc-100 sticky top-14 sm:top-16 z-20">
+      <div class="max-w-7xl mx-auto">
+        <div class="flex items-center gap-2 py-3 px-4 sm:px-6 overflow-x-auto scrollbar-hide">
+          <button
+            @click="selectedCategoryId = null"
+            :class="[
+              'flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap',
+              selectedCategoryId === null
+                ? 'cat-pill-active'
+                : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200/70'
+            ]"
+          >
+            全部
+            <span :class="['text-xs', selectedCategoryId === null ? 'text-white/70' : 'text-zinc-400']">{{ totalProducts }}</span>
+          </button>
+          <button
+            v-for="category in categories"
+            :key="'mobile-' + category.id"
+            @click="selectedCategoryId = category.id"
+            :class="[
+              'flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap',
+              selectedCategoryId === category.id
+                ? 'cat-pill-active'
+                : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200/70'
+            ]"
+          >
+            {{ category.name }}
+            <span :class="['text-xs', selectedCategoryId === category.id ? 'text-white/70' : 'text-zinc-400']">{{ category.product_count || 0 }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Main Content -->
-    <div class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <div class="flex gap-6">
-        <!-- Sidebar - Categories -->
-        <div class="w-64 flex-shrink-0">
-          <div class="bg-white rounded-lg border border-zinc-200 overflow-hidden sticky top-24 shadow-sm">
-            <div class="px-4 py-3 bg-zinc-50 border-b border-zinc-200">
-              <h3 class="text-sm font-semibold text-zinc-900 uppercase tracking-wide">商品分类</h3>
+        <!-- Sidebar -->
+        <div class="hidden lg:block w-60 flex-shrink-0">
+          <div class="sticky top-24 space-y-4">
+            <div class="bg-white rounded-2xl border border-zinc-100 overflow-hidden shadow-card">
+              <div class="px-4 py-3.5 border-b border-zinc-100">
+                <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">商品分类</h3>
+              </div>
+              <nav class="p-2 space-y-0.5">
+                <button
+                  @click="selectedCategoryId = null"
+                  :class="[
+                    'w-full text-left px-3.5 py-2.5 text-sm font-medium rounded-xl transition-all duration-200',
+                    selectedCategoryId === null
+                      ? 'cat-sidebar-active'
+                      : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'
+                  ]"
+                >
+                  <div class="flex items-center justify-between">
+                    <span>全部商品</span>
+                    <span :class="['text-xs font-mono', selectedCategoryId === null ? 'text-white/70' : 'text-zinc-400']">{{ totalProducts }}</span>
+                  </div>
+                </button>
+                <button
+                  v-for="category in categories"
+                  :key="category.id"
+                  @click="selectedCategoryId = category.id"
+                  :class="[
+                    'w-full text-left px-3.5 py-2.5 text-sm font-medium rounded-xl transition-all duration-200',
+                    selectedCategoryId === category.id
+                      ? 'cat-sidebar-active'
+                      : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'
+                  ]"
+                >
+                  <div class="flex items-center justify-between">
+                    <span>{{ category.name }}</span>
+                    <span :class="['text-xs font-mono', selectedCategoryId === category.id ? 'text-white/70' : 'text-zinc-400']">{{ category.product_count || 0 }}</span>
+                  </div>
+                </button>
+              </nav>
             </div>
-            <nav class="p-2">
-              <button
-                @click="selectedCategoryId = null"
-                :class="[
-                  'w-full text-left px-4 py-2.5 text-sm font-medium rounded-md transition-colors',
-                  selectedCategoryId === null
-                    ? 'bg-zinc-900 text-white'
-                    : 'text-zinc-700 hover:bg-zinc-100'
-                ]"
-              >
+
+            <div class="bg-white rounded-2xl border border-zinc-100 p-4 shadow-card">
+              <div class="space-y-3">
                 <div class="flex items-center justify-between">
-                  <span>全部商品</span>
-                  <span class="text-xs">{{ totalProducts }}</span>
+                  <span class="text-xs text-zinc-400">商品总数</span>
+                  <span class="text-sm font-bold text-zinc-900 font-mono">{{ totalProducts }}</span>
                 </div>
-              </button>
-              
-              <button
-                v-for="category in categories"
-                :key="category.id"
-                @click="selectedCategoryId = category.id"
-                :class="[
-                  'w-full text-left px-4 py-2.5 text-sm font-medium rounded-md transition-colors mt-1',
-                  selectedCategoryId === category.id
-                    ? 'bg-zinc-900 text-white'
-                    : 'text-zinc-700 hover:bg-zinc-100'
-                ]"
-              >
                 <div class="flex items-center justify-between">
-                  <span>{{ category.name }}</span>
-                  <span class="text-xs">{{ category.product_count || 0 }}</span>
+                  <span class="text-xs text-zinc-400">分类总数</span>
+                  <span class="text-sm font-bold text-zinc-900 font-mono">{{ categories.length }}</span>
                 </div>
-              </button>
-            </nav>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- Products Grid -->
         <div class="flex-1 min-w-0">
-          <!-- Loading -->
-          <div v-if="loading" class="flex justify-center items-center py-20">
-            <Loader2 class="w-8 h-8 animate-spin text-zinc-400" />
+          <div v-if="loading" class="flex flex-col items-center justify-center py-24 gap-3">
+            <Loader2 class="w-8 h-8 animate-spin text-brand-green" />
+            <span class="text-sm text-zinc-400">加载中...</span>
           </div>
 
-          <!-- Products -->
           <div v-else-if="filteredProducts.length > 0">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div v-if="selectedCategoryId && currentCategory" class="mb-5">
+              <h2 class="text-lg font-bold text-zinc-900">{{ currentCategory.name }}</h2>
+              <p v-if="currentCategory.description" class="text-sm text-zinc-500 mt-1">{{ currentCategory.description }}</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 stagger-in">
               <router-link
                 v-for="product in filteredProducts"
                 :key="product.id"
                 :to="`/product/${product.id}`"
-                class="group bg-white border border-zinc-200 rounded-lg hover:border-zinc-900 hover:shadow-lg transition-all duration-200"
+                class="product-card group"
               >
-                <!-- Product Image -->
-                <div v-if="product.image" class="aspect-video bg-zinc-100 rounded-t-lg overflow-hidden">
-                  <img :src="product.image" :alt="product.name" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200">
+                <div v-if="product.image" class="aspect-[16/10] bg-zinc-50 overflow-hidden">
+                  <img :src="product.image" :alt="product.name" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 </div>
-                <div v-else class="aspect-video bg-gradient-to-br from-zinc-100 to-zinc-200 rounded-t-lg flex items-center justify-center">
-                  <Package class="w-12 h-12 text-zinc-400" />
+                <div v-else class="aspect-[16/10] bg-gradient-to-br from-zinc-50 to-zinc-100 flex items-center justify-center">
+                  <div class="w-14 h-14 rounded-2xl bg-brand-gradient-subtle flex items-center justify-center">
+                    <Package class="w-7 h-7 text-brand-green/60" />
+                  </div>
                 </div>
 
-                <!-- Product Info -->
-                <div class="p-4">
-                  <h3 class="font-semibold text-zinc-900 mb-2 line-clamp-1">{{ product.name }}</h3>
-                  <p v-if="product.description" class="text-sm text-zinc-600 line-clamp-2 mb-3">{{ product.description }}</p>
+                <div class="p-4 sm:p-5">
+                  <div class="flex items-start justify-between gap-2 mb-2">
+                    <h3 class="font-semibold text-zinc-900 line-clamp-1 group-hover:text-brand-green transition-colors">{{ product.name }}</h3>
+                    <ArrowUpRight class="w-4 h-4 text-zinc-300 group-hover:text-brand-green flex-shrink-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </div>
+                  <p v-if="product.description" class="text-sm text-zinc-500 line-clamp-2 mb-4 leading-relaxed">{{ product.description }}</p>
                   
-                  <!-- Price & Stock -->
-                  <div class="flex items-center justify-between pt-3 border-t border-zinc-100">
+                  <div class="flex items-end justify-between pt-3 border-t border-zinc-100/80">
                     <div>
-                      <div class="text-lg font-bold text-zinc-900 font-mono">{{ formatPrice(product.price) }}</div>
-                      <div v-if="product.orig_price && product.orig_price > product.price" class="text-xs text-zinc-500 line-through font-mono">
-                        {{ formatPrice(product.orig_price) }}
-                      </div>
+                      <div class="text-xl font-bold text-zinc-900 font-mono tracking-tight">{{ formatPrice(product.price) }}</div>
+                      <div v-if="product.orig_price && product.orig_price > product.price" class="text-xs text-zinc-400 line-through font-mono mt-0.5">{{ formatPrice(product.orig_price) }}</div>
                     </div>
-                    <div class="text-right">
-                      <div class="text-xs text-zinc-500">库存</div>
-                      <div :class="[
-                        'text-sm font-semibold font-mono',
-                        product.stock_count > 10 ? 'text-green-600' : product.stock_count > 0 ? 'text-orange-600' : 'text-red-600'
-                      ]">
-                        {{ product.stock_count > 0 ? product.stock_count : '已售罄' }}
-                      </div>
+                    <div :class="['inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium', product.stock_count > 10 ? 'bg-emerald-50 text-emerald-600' : product.stock_count > 0 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500']">
+                      <span class="w-1.5 h-1.5 rounded-full" :class="[product.stock_count > 10 ? 'bg-emerald-500' : product.stock_count > 0 ? 'bg-amber-500' : 'bg-red-500']"></span>
+                      {{ product.stock_count > 0 ? '库存 ' + product.stock_count : '已售罄' }}
                     </div>
                   </div>
                 </div>
@@ -123,37 +171,28 @@
             </div>
           </div>
 
-          <!-- Empty State -->
-          <div v-else class="bg-white rounded-lg border border-zinc-200 p-12 text-center">
-            <Package class="w-16 h-16 text-zinc-300 mx-auto mb-4" />
-            <h3 class="text-lg font-semibold text-zinc-900 mb-2">暂无商品</h3>
-            <p class="text-sm text-zinc-600">{{ selectedCategoryId ? '该分类下' : '' }}暂时没有可售商品</p>
+          <div v-else class="flex flex-col items-center justify-center py-20 px-4">
+            <div class="w-20 h-20 rounded-3xl bg-brand-gradient-subtle flex items-center justify-center mb-5">
+              <Package class="w-10 h-10 text-brand-green/50" />
+            </div>
+            <h3 class="text-lg font-semibold text-zinc-900 mb-1.5">暂无商品</h3>
+            <p class="text-sm text-zinc-500">{{ selectedCategoryId ? '该分类下暂时没有可售商品' : '暂时没有可售商品' }}</p>
+            <button v-if="selectedCategoryId" @click="selectedCategoryId = null" class="mt-5 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-brand-green hover:text-brand-green-light transition-colors">
+              查看全部商品
+              <ArrowUpRight class="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- Footer -->
-    <footer class="bg-white border-t border-zinc-200 mt-12">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div class="text-center text-sm text-zinc-600">
-          <p>{{ settings.site_footer || '© 2026 NodeLoc 社区发卡系统' }}</p>
-        </div>
-      </div>
-    </footer>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { Package, Loader2 } from 'lucide-vue-next'
-import { useAuthStore } from '@/stores/auth'
+import { Package, Loader2, ArrowUpRight, Grid3X3 } from 'lucide-vue-next'
 import api from '@/utils/api'
 import { formatPrice } from '@/utils/helpers'
-
-const router = useRouter()
-const authStore = useAuthStore()
 
 const settings = ref({})
 const categories = ref([])
@@ -163,24 +202,24 @@ const selectedCategoryId = ref(null)
 
 const totalProducts = computed(() => products.value.length)
 
+const currentCategory = computed(() => {
+  if (!selectedCategoryId.value) return null
+  return categories.value.find(c => c.id === selectedCategoryId.value)
+})
+
 const filteredProducts = computed(() => {
-  if (selectedCategoryId.value === null) {
-    return products.value
-  }
+  if (selectedCategoryId.value === null) return products.value
   return products.value.filter(p => p.category_id === selectedCategoryId.value)
 })
 
 onMounted(async () => {
   try {
-    // Fetch settings
     const settingsRes = await api.get('/api/settings')
     settings.value = settingsRes.data
-    
-    // Fetch categories with products
+
     const categoriesRes = await api.get('/api/categories/with-products')
     const categoriesData = categoriesRes.data || []
     
-    // Extract categories and products
     categories.value = categoriesData.map(cat => ({
       id: cat.id,
       name: cat.name,
@@ -188,13 +227,8 @@ onMounted(async () => {
       product_count: cat.products?.length || 0
     }))
     
-    // Flatten all products
     products.value = categoriesData.flatMap(cat => 
-      (cat.products || []).map(p => ({
-        ...p,
-        category_id: cat.id,
-        category_name: cat.name
-      }))
+      (cat.products || []).map(p => ({ ...p, category_id: cat.id, category_name: cat.name }))
     )
   } catch (error) {
     console.error('Failed to load data', error)
@@ -202,13 +236,4 @@ onMounted(async () => {
     loading.value = false
   }
 })
-
-async function handleLogout() {
-  try {
-    await authStore.logout()
-    router.push('/')
-  } catch (error) {
-    console.error('Logout failed', error)
-  }
-}
 </script>
