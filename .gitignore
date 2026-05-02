@@ -37,3 +37,7 @@ Thumbs.db
 # Build output
 main
 nodeloc-oauth-demo
+
+# Node.js dependencies
+node_modules/
+marketpro/node_modules/
