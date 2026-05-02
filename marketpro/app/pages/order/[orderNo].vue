@@ -31,7 +31,16 @@
               </div>
               <div class="col-sm-6 col-md-4">
                 <div class="text-gray-500 text-sm mb-4">商品名称</div>
-                <div>{{ order.product?.name || "-" }}</div>
+                <div>
+                  <NuxtLink
+                    v-if="order.product?.id"
+                    :to="`/product/${order.product.id}`"
+                    class="text-main-600 hover-text-main-700 fw-semibold text-decoration-underline"
+                  >
+                    {{ order.product.name }}
+                  </NuxtLink>
+                  <span v-else>{{ order.product?.name || "-" }}</span>
+                </div>
               </div>
               <div class="col-sm-6 col-md-4">
                 <div class="text-gray-500 text-sm mb-4">数量</div>
@@ -51,6 +60,21 @@
                 <div class="text-gray-500 text-sm mb-4">备注</div>
                 <div>{{ order.remark }}</div>
               </div>
+            </div>
+
+            <!-- 评价按钮：已完成订单且有商品 -->
+            <div v-if="order.status === 2 && order.product?.id" class="mt-24 pt-20 border-top border-gray-100">
+              <button
+                v-if="!reviewed"
+                type="button"
+                class="btn btn-outline-main rounded-8 px-24"
+                @click="openReview"
+              >
+                <i class="ph ph-star me-8"></i>评价商品
+              </button>
+              <span v-else class="text-success-600 fw-medium">
+                <i class="ph-fill ph-check-circle me-6"></i>已评价
+              </span>
             </div>
           </div>
 
@@ -119,6 +143,88 @@
         </div>
       </div>
     </section>
+
+    <!-- 评价弹窗 -->
+    <div v-if="reviewModal" class="review-overlay" @click.self="reviewModal = false">
+      <div class="review-dialog">
+        <div class="review-dialog__header">
+          <h6 class="mb-0">评价商品</h6>
+          <button type="button" class="btn-close-custom" @click="reviewModal = false">
+            <i class="ph ph-x"></i>
+          </button>
+        </div>
+
+        <div class="review-dialog__body">
+          <!-- 商品信息 -->
+          <div class="d-flex align-items-center gap-12 mb-24 p-16 bg-color-one rounded-8">
+            <img
+              v-if="order?.product?.image"
+              :src="order.product.image"
+              :alt="order.product.name"
+              style="width:48px;height:48px;object-fit:contain;border-radius:6px;border:1px solid #eee"
+            />
+            <div>
+              <div class="fw-semibold text-gray-900">{{ order?.product?.name }}</div>
+              <div class="text-gray-400 text-sm">订单号：{{ order?.order_no }}</div>
+            </div>
+          </div>
+
+          <!-- 星级评分 -->
+          <div class="mb-20">
+            <div class="text-gray-700 fw-medium mb-10">评分 <span class="text-danger-600">*</span></div>
+            <div class="d-flex gap-8">
+              <button
+                v-for="n in 5"
+                :key="n"
+                type="button"
+                class="star-btn"
+                :class="n <= reviewForm.rating ? 'active' : ''"
+                @click="reviewForm.rating = n"
+              >
+                <i :class="n <= reviewForm.rating ? 'ph-fill ph-star' : 'ph ph-star'"></i>
+              </button>
+            </div>
+            <div class="text-sm text-gray-400 mt-6">{{ ratingLabel }}</div>
+          </div>
+
+          <!-- 标题 -->
+          <div class="mb-16">
+            <div class="text-gray-700 fw-medium mb-8">评价标题</div>
+            <input
+              v-model="reviewForm.title"
+              type="text"
+              class="form-control rounded-8"
+              placeholder="一句话概括你的体验（选填）"
+              maxlength="100"
+            />
+          </div>
+
+          <!-- 内容 -->
+          <div class="mb-8">
+            <div class="text-gray-700 fw-medium mb-8">评价内容</div>
+            <textarea
+              v-model="reviewForm.content"
+              class="form-control rounded-8"
+              rows="4"
+              placeholder="分享你的使用体验（选填）"
+              maxlength="500"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="review-dialog__footer">
+          <button type="button" class="btn btn-outline-gray rounded-8 px-24" @click="reviewModal = false">取消</button>
+          <button
+            type="button"
+            class="btn btn-main rounded-8 px-32"
+            :disabled="reviewForm.rating === 0 || submitting"
+            @click="submitReview"
+          >
+            {{ submitting ? "提交中..." : "提交评价" }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -131,6 +237,16 @@ const route = useRoute();
 const order = ref<any>(null);
 const loading = ref(true);
 const confirming = ref(false);
+const reviewed = ref(false);
+const reviewModal = ref(false);
+const submitting = ref(false);
+
+const reviewForm = ref({ rating: 0, title: "", content: "" });
+
+const ratingLabel = computed(() => {
+  const labels = ["", "非常差", "较差", "一般", "满意", "非常满意"];
+  return labels[reviewForm.value.rating] || "点击星星评分";
+});
 
 onMounted(async () => {
   try {
@@ -143,6 +259,33 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+function openReview() {
+  reviewForm.value = { rating: 5, title: "", content: "" };
+  reviewModal.value = true;
+}
+
+async function submitReview() {
+  if (!reviewForm.value.rating || !order.value?.product?.id) return;
+  submitting.value = true;
+  try {
+    await $fetch(`/api/products/${order.value.product.id}/reviews`, {
+      method: "POST",
+      credentials: "include",
+      body: {
+        rating: reviewForm.value.rating,
+        title: reviewForm.value.title,
+        content: reviewForm.value.content,
+      },
+    });
+    reviewed.value = true;
+    reviewModal.value = false;
+  } catch (e: any) {
+    alert(e?.data?.error || "提交失败，请稍后重试");
+  } finally {
+    submitting.value = false;
+  }
+}
 
 function formatDate(d: string) {
   if (!d) return "";
@@ -186,3 +329,88 @@ function copy(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
 }
 </script>
+
+<style scoped>
+/* ── 评价弹窗 ── */
+.review-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.review-dialog {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.review-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.btn-close-custom {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #86909c;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.btn-close-custom:hover { background: #f5f5f5; color: #1d2129; }
+
+.review-dialog__body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.review-dialog__footer {
+  padding: 16px 24px 20px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* 星星按钮 */
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #d9d9d9;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s, transform 0.1s;
+}
+.star-btn:hover,
+.star-btn.active {
+  color: #f7ba2a;
+}
+.star-btn:hover { transform: scale(1.15); }
+
+.btn-outline-gray {
+  border: 1px solid #d9d9d9;
+  color: #4e5969;
+  background: #fff;
+}
+.btn-outline-gray:hover { background: #f5f5f5; }
+</style>
