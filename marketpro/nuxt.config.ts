@@ -19,7 +19,6 @@ export default defineNuxtConfig({
   nitro: {
     routeRules: {
       "/api/**": { proxy: `${process.env.BACKEND_URL || "http://backend:8080"}/api/**` },
-      "/payment/**": { proxy: `${process.env.BACKEND_URL || "http://backend:8080"}/payment/**` },
       "/uploads/**": { proxy: `${process.env.BACKEND_URL || "http://backend:8080"}/uploads/**` },
     },
   },
