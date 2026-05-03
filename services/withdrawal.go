@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -85,15 +86,7 @@ func (s *WithdrawalService) Apply(userID, shopID uint, amount float64, remark st
 	var req *models.WithdrawalRequest
 
 	err := database.GetDB().Transaction(func(tx *gorm.DB) error {
-		// 扣减用户余额（先冻结到提现单上）
-		if err := s.balanceService.DeductBalance(tx, userID, amount,
-			models.BalanceTxWithdrawal,
-			fmt.Sprintf("提现申请 ¥%.2f（手续费 ¥%.2f）", amount, fee),
-			"withdrawal", 0,
-		); err != nil {
-			return err
-		}
-
+		// 先创建提现单，拿到 ID
 		req = &models.WithdrawalRequest{
 			UserID:       userID,
 			ShopID:       shopID,
@@ -108,11 +101,12 @@ func (s *WithdrawalService) Apply(userID, shopID uint, amount float64, remark st
 			return err
 		}
 
-		// 回填流水的 ref_id
-		return tx.Model(&models.BalanceTx{}).
-			Where("user_id = ? AND ref_type = ? AND ref_id = 0", userID, "withdrawal").
-			Order("id desc").Limit(1).
-			Update("ref_id", req.ID).Error
+		// 扣减用户余额，ref_id 直接用提现单 ID（无竞态）
+		return s.balanceService.DeductBalance(tx, userID, amount,
+			models.BalanceTxWithdrawal,
+			fmt.Sprintf("提现申请 %.0f 能量（手续费 %.2f）", amount, fee),
+			"withdrawal", req.ID,
+		)
 	})
 
 	if err != nil {
@@ -120,12 +114,12 @@ func (s *WithdrawalService) Apply(userID, shopID uint, amount float64, remark st
 	}
 
 	// 通知管理员有新提现申请
-	NewEmailService().SendWithdrawalNotify(req)
+	go NewEmailService().SendWithdrawalNotify(req)
 
 	return req, nil
 }
 
-// Approve 管理员批准提现（标记完成 + 自动调用 NodeLoc Payment 转账）
+// Approve 管理员批准提现（先调用 NodeLoc Payment 转账，成功后更新状态）
 func (s *WithdrawalService) Approve(id uint, transferTxID string) error {
 	var req models.WithdrawalRequest
 	if err := database.GetDB().Preload("User").First(&req, id).Error; err != nil {
@@ -135,13 +129,20 @@ func (s *WithdrawalService) Approve(id uint, transferTxID string) error {
 		return ErrWithdrawalNotPending
 	}
 
-	// 自动转账：使用 NodeLoc Payment Transfer API
-	// payment_id / payment_secret 优先从 settings 读，fallback 到 AppConfig（环境变量）
+	// 校验接收方信息
+	if req.User == nil || req.User.ID == 0 {
+		return &ServiceError{Message: "找不到提现用户信息"}
+	}
+	if req.User.NodeLocID == 0 {
+		return &ServiceError{Message: "用户未绑定 NodeLoc 账号，无法自动转账"}
+	}
+
+	// 读取支付配置
 	paymentID := s.settingService.Get(SettingPaymentID)
 	paymentSecret := s.settingService.Get(SettingPaymentSecret)
 	nodeLoc_URL := s.settingService.Get(SettingNodeLocURL)
 
-	// fallback 到 AppConfig（环境变量）
+	// fallback 到环境变量
 	if paymentID == "" || paymentSecret == "" {
 		cfg := getAppConfig()
 		if cfg != nil {
@@ -160,10 +161,10 @@ func (s *WithdrawalService) Approve(id uint, transferTxID string) error {
 		nodeLoc_URL = "https://www.nodeloc.com"
 	}
 
-	if paymentID != "" && paymentSecret != "" && req.User.ID > 0 {
+	// 自动转账（配置了支付才执行）
+	if paymentID != "" && paymentSecret != "" && transferTxID == "" {
 		client := payment.NewClient(nodeLoc_URL, paymentID, paymentSecret)
 		orderID := fmt.Sprintf("withdrawal_%d", req.ID)
-		// ActualAmount 是扣除手续费后的到账金额（整数能量）
 		amount := int(req.ActualAmount)
 		if amount <= 0 {
 			amount = int(req.Amount)
@@ -177,19 +178,27 @@ func (s *WithdrawalService) Approve(id uint, transferTxID string) error {
 		if err != nil {
 			return fmt.Errorf("NodeLoc 转账失败: %v", err)
 		}
-		if transferTxID == "" {
-			transferTxID = tr.TransactionID
-		}
+		transferTxID = tr.TransactionID
 	}
 
+	// 转账成功（或手动填写了 tx_id）→ 更新提现单状态
+	// 使用乐观锁：只更新 pending 状态的记录，防止重复处理
 	now := time.Now()
-	return database.GetDB().Model(&models.WithdrawalRequest{}).
+	result := database.GetDB().Model(&models.WithdrawalRequest{}).
 		Where("id = ? AND status = ?", id, models.WithdrawalStatusPending).
 		Updates(map[string]interface{}{
 			"status":         models.WithdrawalStatusCompleted,
 			"transfer_tx_id": transferTxID,
 			"reviewed_at":    &now,
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		// 已被其他请求处理（幂等）
+		return ErrWithdrawalNotPending
+	}
+	return nil
 }
 
 // Reject 管理员拒绝提现 → 把扣的余额退回去
@@ -213,11 +222,20 @@ func (s *WithdrawalService) Reject(id uint, reason string) error {
 		}
 
 		now := time.Now()
-		return tx.Model(&models.WithdrawalRequest{}).Where("id = ?", id).Updates(map[string]interface{}{
-			"status":        models.WithdrawalStatusRejected,
-			"reject_reason": reason,
-			"reviewed_at":   &now,
-		}).Error
+		result := tx.Model(&models.WithdrawalRequest{}).
+			Where("id = ? AND status = ?", id, models.WithdrawalStatusPending).
+			Updates(map[string]interface{}{
+				"status":        models.WithdrawalStatusRejected,
+				"reject_reason": reason,
+				"reviewed_at":   &now,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrWithdrawalNotPending
+		}
+		return nil
 	})
 }
 
@@ -259,3 +277,6 @@ func (s *WithdrawalService) GetAll(page, pageSize, status int) ([]models.Withdra
 	}
 	return list, total, nil
 }
+
+// 确保 errors 包被使用（用于未来扩展）
+var _ = errors.New
