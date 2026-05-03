@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -587,15 +588,16 @@ func (s *OrderService) completeOrderTxWithDB(tx *gorm.DB, order *models.Order, a
 		return err
 	}
 
-	// 店主结算
-	if order.ShopID > 0 {
+	// 店主结算：ShopID > 0 且未结算
+	if order.ShopID > 0 && !order.ShopSettled {
 		var shop models.Shop
-		if err := tx.First(&shop, order.ShopID).Error; err != nil {
-			return err
+		err := tx.First(&shop, order.ShopID).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err // 真正的数据库错误才回滚
 		}
-		// 平台官方店或没有 user_id 的店铺不结算到余额
-		if !shop.IsOfficial && shop.UserID > 0 {
-			income := order.TotalAmount // 当前不抽成，后续若启用 commission，按比例
+		// 非官方店且有店主用户 → 结算余额
+		if err == nil && !shop.IsOfficial && shop.UserID > 0 {
+			income := order.TotalAmount
 			if err := balanceService.AddBalance(tx, shop.UserID, income,
 				models.BalanceTxSaleIncome,
 				fmt.Sprintf("订单 %s 销售收入", order.OrderNo),
@@ -613,7 +615,7 @@ func (s *OrderService) completeOrderTxWithDB(tx *gorm.DB, order *models.Order, a
 			// 通知店主有新订单（异步，不影响事务）
 			var shopOwner models.User
 			if err := tx.First(&shopOwner, shop.UserID).Error; err == nil && shopOwner.Email != "" {
-				emailService.SendNewOrderToShop(order, shopOwner.Email)
+				go emailService.SendNewOrderToShop(order, shopOwner.Email)
 			}
 		}
 	}
@@ -623,7 +625,7 @@ func (s *OrderService) completeOrderTxWithDB(tx *gorm.DB, order *models.Order, a
 		// 重新加载卡密（事务内已分配）
 		var fullOrder models.Order
 		if err := tx.Preload("User").Preload("Product").Preload("CardKeys").First(&fullOrder, order.ID).Error; err == nil {
-			emailService.SendOrderCompleted(&fullOrder)
+			go emailService.SendOrderCompleted(&fullOrder)
 		}
 	}
 
