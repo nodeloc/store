@@ -24,7 +24,17 @@
         <el-table-column prop="card_pwd" label="密码" show-overflow-tooltip />
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.is_used ? 'danger' : 'success'" size="small">{{ row.is_used ? "已使用" : "未使用" }}</el-tag>
+            <el-tag :type="row.status === 1 ? 'danger' : 'success'" size="small">
+              {{ row.status === 1 ? "已售出" : "未使用" }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="售出时间" width="160">
+          <template #default="{ row }">
+            <span v-if="row.sold_at" class="text-sm text-gray-500">
+              {{ new Date(row.sold_at).toLocaleString("zh-CN") }}
+            </span>
+            <span v-else class="text-gray-300">—</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="90" fixed="right">
