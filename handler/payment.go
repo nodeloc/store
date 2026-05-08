@@ -229,21 +229,18 @@ func (h *PaymentHandler) QueryOrder(c *gin.Context) {
 	if order.TransactionID != "" {
 		queryResp, err := h.paymentService.QueryPayment(order.TransactionID)
 		if err == nil && queryResp.Status == "completed" {
-			// 支付已完成，处理订单
-			callback := &services.PaymentCallback{
-				TransactionID:     queryResp.TransactionID,
-				ExternalReference: order.OrderNo,
-				Amount:            queryResp.Amount,
-				PlatformFee:       queryResp.PlatformFee,
-				MerchantPoints:    queryResp.MerchantPoints,
-				Status:            queryResp.Status,
+			// 支付已完成，通过 orderService 处理（含签名验证已在 paymentService 层做过）
+			// QueryPayment 是我们主动查询的，NodeLoc 不提供签名，直接信任查询结果
+			_, processErr := h.orderService.ProcessPaymentCallback(
+				queryResp.TransactionID,
+				queryResp.Amount,
+				queryResp.PlatformFee,
+				queryResp.MerchantPoints,
+			)
+			if processErr != nil {
+				fmt.Printf("QueryOrder 处理订单失败: %v\n", processErr)
 			}
-			if queryResp.PaidAt != nil {
-				callback.PaidAt = *queryResp.PaidAt
-			}
-			h.paymentService.ProcessPaymentCallback(callback)
-			
-			// 重新查询订单
+			// 重新查询订单（无论处理是否成功，返回最新状态）
 			order, _ = h.orderService.FindByOrderNo(orderNo)
 		}
 	}

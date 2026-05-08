@@ -267,6 +267,7 @@ func (s *OrderService) ProcessPaymentCallback(transactionID string, amount, plat
 		return nil, ErrOrderNotFound
 	}
 
+	// 幂等：订单已处理则直接返回
 	if order.Status != models.OrderStatusPending {
 		return order, nil
 	}
@@ -284,11 +285,28 @@ func (s *OrderService) ProcessPaymentCallback(transactionID string, amount, plat
 		order.PayMethod = models.PayMethodNodeLoc
 	}
 
+	// 使用数据库乐观锁：只更新 pending 状态的订单，防止并发重复处理
+	updated := database.GetDB().Model(&models.Order{}).
+		Where("id = ? AND status = ?", order.ID, models.OrderStatusPending).
+		Updates(map[string]interface{}{
+			"paid_at":         now,
+			"platform_fee":    platformFee,
+			"merchant_points": merchantPoints,
+			"pay_method":      order.PayMethod,
+		})
+	if updated.Error != nil {
+		return nil, updated.Error
+	}
+	if updated.RowsAffected == 0 {
+		// 已被其他请求处理（幂等）
+		return s.FindByID(order.ID)
+	}
+
 	// 手动发货：仅标记已支付，等待卖家发货
 	if order.Product != nil && order.Product.DeliveryType == models.DeliveryTypeManual {
-		order.Status = models.OrderStatusPaid
 		if err := database.GetDB().Transaction(func(tx *gorm.DB) error {
-			if err := tx.Save(order).Error; err != nil {
+			if err := tx.Model(&models.Order{}).Where("id = ?", order.ID).
+				Update("status", models.OrderStatusPaid).Error; err != nil {
 				return err
 			}
 			// 扣减手动库存

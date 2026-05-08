@@ -130,6 +130,7 @@ type PaymentCallback struct {
 }
 
 // VerifyCallback 验证回调签名
+// NodeLoc 回调签名使用直接 secret_key 作为 HMAC 密钥（不经过 token_hash）
 func (s *PaymentService) VerifyCallback(callback *PaymentCallback) bool {
 	cfg := s.GetConfig()
 	if cfg.SecretKey == "" {
@@ -137,7 +138,7 @@ func (s *PaymentService) VerifyCallback(callback *PaymentCallback) bool {
 		return false
 	}
 
-	// 准备签名参数（排除signature本身）
+	// 准备签名参数（排除 signature 本身）
 	params := map[string]string{
 		"transaction_id":     callback.TransactionID,
 		"external_reference": callback.ExternalReference,
@@ -148,27 +149,27 @@ func (s *PaymentService) VerifyCallback(callback *PaymentCallback) bool {
 		"paid_at":            callback.PaidAt,
 	}
 
-	// 生成签名并比对（回调验证也使用 token_hash，和发起支付一样）
-	expectedSignature := s.generateSignatureForPayment(params, cfg.SecretKey)
+	// 回调验证：直接用 secret_key 做 HMAC（不经过 token_hash）
+	expectedSignature := s.generateSignatureForCallback(params, cfg.SecretKey)
 
-	// 详细日志
 	fmt.Println("=== 回调签名验证 ===")
-	fmt.Printf("接收到的回调参数:\n")
 	fmt.Printf("  transaction_id: %s\n", callback.TransactionID)
 	fmt.Printf("  external_reference: %s\n", callback.ExternalReference)
-	fmt.Printf("  amount: %d\n", callback.Amount)
-	fmt.Printf("  platform_fee: %d\n", callback.PlatformFee)
-	fmt.Printf("  merchant_points: %d\n", callback.MerchantPoints)
-	fmt.Printf("  status: %s\n", callback.Status)
-	fmt.Printf("  paid_at: %s\n", callback.PaidAt)
 	fmt.Printf("  signature (接收): %s\n", callback.Signature)
-	fmt.Printf("计算的签名: %s\n", expectedSignature)
-	fmt.Printf("SecretKey: %s\n", cfg.SecretKey)
+	fmt.Printf("  signature (计算): %s\n", expectedSignature)
 
 	isValid := hmac.Equal([]byte(expectedSignature), []byte(callback.Signature))
-	fmt.Printf("签名验证结果: %v\n", isValid)
-	fmt.Println("==================")
+	fmt.Printf("  验证结果: %v\n", isValid)
 
+	// 兼容：如果直接 secret_key 方式失败，再尝试 token_hash 方式
+	if !isValid {
+		expectedAlt := s.generateSignatureForPayment(params, cfg.SecretKey)
+		isValid = hmac.Equal([]byte(expectedAlt), []byte(callback.Signature))
+		if isValid {
+			fmt.Println("  (使用 token_hash 方式验证通过)")
+		}
+	}
+	fmt.Println("==================")
 	return isValid
 }
 
