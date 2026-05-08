@@ -12,9 +12,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/nodeloc-faka/database"
-	"github.com/nodeloc-faka/models"
 )
 
 // PaymentService 支付服务
@@ -301,71 +298,26 @@ func (s *PaymentService) generateSignatureForCallback(params map[string]string, 
 	return signature
 }
 
-// ProcessPaymentCallback 处理支付回调
+// ProcessPaymentCallback 处理支付回调 — 委托给 OrderService 统一处理
+// （包含手动发货判断、事务保护、店主余额结算）
 func (s *PaymentService) ProcessPaymentCallback(callback *PaymentCallback) error {
 	// 1. 验证签名
 	if !s.VerifyCallback(callback) {
 		return fmt.Errorf("签名验证失败")
 	}
 
-	// 2. 查找订单
-	orderService := NewOrderService()
-	order, err := orderService.FindByOrderNo(callback.ExternalReference)
-	if err != nil {
-		return fmt.Errorf("订单不存在: %s", callback.ExternalReference)
-	}
-
-	// 3. 检查订单状态（防止重复处理）
-	if order.Status != models.OrderStatusPending {
-		// 订单已处理，直接返回成功（幂等）
-		return nil
-	}
-
-	// 4. 验证金额
-	expectedAmount := int(order.TotalAmount) // 假设1能量=1元
-	if callback.Amount != expectedAmount {
-		return fmt.Errorf("金额不匹配: 期望 %d, 实际 %d", expectedAmount, callback.Amount)
-	}
-
-	// 5. 检查支付状态
+	// 2. 检查支付状态
 	if callback.Status != "completed" {
 		return fmt.Errorf("支付未完成: %s", callback.Status)
 	}
 
-	// 6. 更新订单状态
-	now := time.Now()
-	order.Status = models.OrderStatusPaid
-	order.PaidAt = &now
-	order.PayMethod = "nodeloc"
-	order.TransactionID = callback.TransactionID
-
-	if err := database.GetDB().Save(order).Error; err != nil {
-		return fmt.Errorf("更新订单失败: %w", err)
-	}
-
-	// 7. 分配卡密
-	cardKeyService := NewCardKeyService()
-	availableCards, err := cardKeyService.GetAvailableByProduct(order.ProductID, order.Quantity)
-	if err != nil || len(availableCards) < order.Quantity {
-		// 库存不足，记录日志但不影响支付状态
-		// 实际项目中应该发送告警
-		return nil
-	}
-
-	cardIDs := make([]uint, len(availableCards))
-	for i, card := range availableCards {
-		cardIDs[i] = card.ID
-	}
-	cardKeyService.MarkAsSold(cardIDs, order.ID)
-
-	// 8. 更新商品库存和销量
-	productService := NewProductService()
-	productService.UpdateStock(order.ProductID)
-	productService.IncrementSales(order.ProductID, order.Quantity)
-
-	// 9. 标记订单完成
-	order.Status = models.OrderStatusCompleted
-	database.GetDB().Save(order)
-
-	return nil
+	// 3. 委托 OrderService 处理（含事务、手动发货、店主结算）
+	orderService := NewOrderService()
+	_, err := orderService.ProcessPaymentCallback(
+		callback.TransactionID,
+		callback.Amount,
+		callback.PlatformFee,
+		callback.MerchantPoints,
+	)
+	return err
 }
