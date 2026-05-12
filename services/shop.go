@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"os"
 	"time"
 
 	"github.com/nodeloc-faka/database"
@@ -37,7 +38,14 @@ func (s *ShopService) Apply(shop *models.Shop) error {
 		return err
 	}
 
-	shop.Status = models.ShopStatusPending
+	// AUTO_APPROVE_SHOP=true 时自动审核通过
+	if os.Getenv("AUTO_APPROVE_SHOP") == "true" {
+		now := time.Now()
+		shop.Status = models.ShopStatusApproved
+		shop.ReviewedAt = &now
+	} else {
+		shop.Status = models.ShopStatusPending
+	}
 	return db.Create(shop).Error
 }
 

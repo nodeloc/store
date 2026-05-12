@@ -104,6 +104,8 @@ services:
       - GIN_MODE=release
       - TZ=Asia/Shanghai
       - DISABLE_DEMO_DATA=true
+      - AUTO_APPROVE_SHOP=true
+      - AUTO_APPROVE_WITHDRAWAL=true
     volumes:
       - uploads:/app/uploads
     depends_on:

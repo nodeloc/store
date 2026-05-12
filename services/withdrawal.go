@@ -116,6 +116,15 @@ func (s *WithdrawalService) Apply(userID, shopID uint, amount float64, remark st
 	// 通知管理员有新提现申请
 	go NewEmailService().SendWithdrawalNotify(req)
 
+	// AUTO_APPROVE_WITHDRAWAL=true 时自动审核通过（调用 NodeLoc 转账）
+	if os.Getenv("AUTO_APPROVE_WITHDRAWAL") == "true" {
+		go func() {
+			if err := s.Approve(req.ID, ""); err != nil {
+				fmt.Printf("自动审核提现失败 #%d: %v\n", req.ID, err)
+			}
+		}()
+	}
+
 	return req, nil
 }
 
