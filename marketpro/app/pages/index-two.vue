@@ -38,13 +38,6 @@ definePageMeta({
   layout: "layout-two",
 });
 
-useHead({
-  htmlAttrs: {
-    lang: "en",
-    class: "color-two font-exo",
-  },
-});
-
 useSeo({
   title: "Home Two",
   

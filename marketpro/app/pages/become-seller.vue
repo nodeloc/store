@@ -24,13 +24,6 @@ definePageMeta({
   layout: "layout-three",
 });
 
-useHead({
-  htmlAttrs: {
-    lang: "en",
-    class: "color-two font-exo header-style-two",
-  },
-});
-
 useSeo({
   title: "申请开店",
   

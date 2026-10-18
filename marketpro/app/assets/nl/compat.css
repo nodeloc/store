@@ -1,0 +1,111 @@
+/* Maps the legacy MarketPro template variables (still used by account, vendor and blog pages)
+   onto NodeLoc Store tokens, so those pages follow the active theme. Template shade variables are
+   computed on :root, so each shade has to be overridden here rather than just the base hue. */
+.nl-site {
+  --heading-font: var(--font-display);
+  --heading-font-two: var(--font-display);
+  --heading-font-three: var(--font-display);
+  --body-font: var(--font-sans);
+  /* --white must stay true white: the template uses it for text/icons on dark overlays.
+     .bg-white surfaces are redirected below instead. */
+  --white: 0 0% 100%;
+  --heading-color: 210 20% 95%;
+  --body-color: 216 8% 67%;
+  --main-h: 183; --main-s: 70%; --main-l: 59%;
+  --main-two-h: 183; --main-two-s: 70%; --main-two-l: 59%;
+
+  --main-50: var(--brand-soft); --main-100: var(--brand-soft); --main-200: var(--brand-soft);
+  --main-300: var(--brand); --main-400: var(--brand); --main-500: var(--brand); --main-600: var(--brand);
+  --main-700: var(--brand-hover); --main-800: var(--brand-hover); --main-900: var(--brand-hover);
+  --main-two-50: var(--brand-soft); --main-two-100: var(--brand-soft); --main-two-200: var(--brand-soft);
+  --main-two-300: var(--brand); --main-two-400: var(--brand); --main-two-500: var(--brand); --main-two-600: var(--brand);
+  --main-two-700: var(--brand-hover); --main-two-800: var(--brand-hover); --main-two-900: var(--brand-hover);
+  --primary-50: var(--brand-soft); --primary-100: var(--brand-soft); --primary-600: var(--brand); --primary-700: var(--brand-hover);
+
+  --gray-50: var(--surface-sunken); --gray-100: var(--border); --gray-200: color-mix(in srgb, var(--border) 55%, var(--border-strong));
+  --gray-300: var(--ink-subtle); --gray-400: var(--ink-subtle); --gray-500: var(--ink-muted); --gray-600: var(--ink-muted);
+  --gray-700: var(--ink); --gray-800: var(--ink); --gray-900: var(--ink);
+  --neutral-30: var(--surface-sunken); --neutral-40: var(--border); --neutral-50: var(--surface-sunken); --neutral-100: var(--border);
+  --neutral-200: color-mix(in srgb, var(--border) 55%, var(--border-strong)); --neutral-300: var(--ink-subtle); --neutral-400: var(--ink-subtle);
+  --neutral-500: var(--ink-muted); --neutral-600: var(--ink); --neutral-700: var(--ink); --neutral-800: var(--ink); --neutral-900: var(--ink);
+  --light-50: var(--surface-sunken); --light-100: var(--surface-sunken); --light-600: var(--brand-soft); --light-700: var(--ink-muted); --light-800: var(--ink);
+
+  --danger-50: var(--danger-soft); --danger-100: var(--danger-soft); --danger-200: var(--danger-soft);
+  --danger-300: var(--danger); --danger-400: var(--danger); --danger-500: var(--danger); --danger-600: var(--danger); --danger-700: var(--danger); --danger-800: var(--danger); --danger-900: var(--danger);
+  --success-50: var(--success-soft); --success-100: var(--success-soft); --success-200: var(--success-soft);
+  --success-300: var(--success); --success-400: var(--success); --success-500: var(--success); --success-600: var(--success); --success-700: var(--success); --success-800: var(--success); --success-900: var(--success);
+  --warning-50: var(--warning-soft); --warning-100: var(--warning-soft); --warning-200: var(--warning-soft);
+  --warning-300: var(--warning); --warning-400: var(--warning); --warning-500: var(--warning); --warning-600: var(--warning); --warning-700: var(--warning); --warning-800: var(--warning); --warning-900: var(--warning);
+  --purple-50: var(--brand-soft); --purple-100: var(--brand-soft); --purple-600: var(--brand);
+
+  --bs-body-bg: var(--bg);
+  --bs-body-color: var(--ink);
+  --bs-emphasis-color: var(--ink);
+  --bs-secondary-color: var(--ink-muted);
+  --bs-tertiary-color: var(--ink-subtle);
+  --bs-secondary-bg: var(--surface);
+  --bs-tertiary-bg: var(--surface-sunken);
+  --bs-border-color: var(--border);
+  --bs-heading-color: var(--ink);
+  --bs-link-color: var(--brand);
+  --bs-link-hover-color: var(--brand-hover);
+  --bs-light: var(--surface-sunken);
+  --bs-light-rgb: 24, 27, 33;
+  --bs-white-rgb: 255, 255, 255;
+  --bs-form-control-bg: var(--surface);
+}
+[data-theme="light"] .nl-site {
+  --white: 0 0% 100%;
+  --heading-color: 220 13% 9%;
+  --body-color: 225 6% 35%;
+  --main-h: 187; --main-s: 83%; --main-l: 26%;
+  --main-two-h: 187; --main-two-s: 83%; --main-two-l: 26%;
+  --bs-light-rgb: 234, 232, 225;
+  --bs-white-rgb: 255, 255, 255;
+}
+
+/* :where() keeps these at element specificity so every nl- component class still wins. */
+:where(.nl-site) a { color: var(--brand); }
+:where(.nl-site) a:where(:hover) { color: var(--brand-hover); }
+:where(.nl-site) :where(h1, h2, h3, h4, h5, h6) { color: var(--ink); font-family: var(--font-display); letter-spacing: -0.02em; }
+.nl-site .bg-white { background-color: var(--surface) !important; }
+.nl-site .bg-color-one, .nl-site .bg-color-two, .nl-site .bg-color-three, .nl-site .bg-light { background-color: var(--surface-sunken) !important; }
+.nl-site .text-heading, .nl-site .text-heading-two, .nl-site .text-heading-three { color: var(--ink) !important; }
+.nl-site .text-body-two { color: var(--ink-muted) !important; }
+.nl-site .text-muted { color: var(--ink-muted) !important; }
+.nl-site .border, .nl-site .border-top, .nl-site .border-bottom, .nl-site .border-start, .nl-site .border-end { border-color: var(--border); }
+
+.nl-site .btn-main, .nl-site .btn-main-two { background-color: var(--brand) !important; color: var(--on-brand) !important; border-color: var(--brand) !important; }
+.nl-site .btn-main:hover, .nl-site .btn-main-two:hover { background-color: var(--brand-hover) !important; }
+.nl-site .btn-outline-main { color: var(--brand) !important; border-color: var(--brand) !important; background: transparent !important; }
+.nl-site .btn-outline-main:hover { background: var(--brand-soft) !important; }
+.nl-site .btn-outline-secondary { color: var(--ink-muted); border-color: var(--border-strong); }
+.nl-site .btn-outline-secondary:hover { background: var(--surface-sunken); color: var(--ink); }
+
+.nl-site .common-input, .nl-site .form-control, .nl-site .form-select {
+  background-color: var(--surface); color: var(--ink); border-color: var(--border-strong);
+}
+.nl-site .common-input::placeholder, .nl-site .form-control::placeholder { color: var(--ink-subtle); }
+.nl-site .common-input:focus, .nl-site .form-control:focus, .nl-site .form-select:focus {
+  border-color: var(--brand); box-shadow: 0 0 0 4px var(--glow-brand); background-color: var(--surface); color: var(--ink);
+}
+.nl-site .form-check-input { background-color: var(--surface); border-color: var(--border-strong); }
+.nl-site .form-check-input:checked { background-color: var(--brand); border-color: var(--brand); }
+.nl-site .table { --bs-table-bg: transparent; --bs-table-color: var(--ink); --bs-table-border-color: var(--border); --bs-table-hover-bg: var(--surface-sunken); --bs-table-hover-color: var(--ink); --bs-table-striped-bg: var(--surface-sunken); }
+.nl-site .alert-warning { background: var(--warning-soft); color: var(--warning); border-color: transparent; }
+.nl-site .alert-danger { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+.nl-site .alert-success { background: var(--success-soft); color: var(--success); border-color: transparent; }
+.nl-site .alert-info { background: var(--brand-soft); color: var(--brand); border-color: transparent; }
+.nl-site .modal-content, .nl-site .dropdown-menu { background: var(--surface); color: var(--ink); border-color: var(--border); }
+.nl-site .page-link { background: var(--surface); color: var(--ink); border-color: var(--border); }
+.nl-site .page-item.active .page-link { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
+.nl-site .spinner-border { color: var(--brand); }
+.nl-site .multiselect__tags, .nl-site .multiselect__content-wrapper, .nl-site .multiselect__input, .nl-site .multiselect__single { background: var(--surface); color: var(--ink); border-color: var(--border-strong); }
+.nl-site .shadow-sm, .nl-site .box-shadow-sm { box-shadow: var(--shadow-sm) !important; }
+
+/* Dark-surface utilities: the template uses bg-neutral-600+ (and gray-700+) as dark blocks with
+   white text on top. The variable remap turns them light, so force them back to the ink surface. */
+.nl-site .bg-neutral-600, .nl-site .bg-neutral-700, .nl-site .bg-neutral-800, .nl-site .bg-neutral-900,
+.nl-site .bg-gray-700, .nl-site .bg-gray-800, .nl-site .bg-gray-900 { background-color: var(--surface-ink) !important; }
+.nl-site .hover-bg-neutral-600:hover, .nl-site .hover-bg-neutral-700:hover,
+.nl-site .hover-bg-gray-800:hover, .nl-site .hover-bg-gray-900:hover { background-color: var(--brand-soft) !important; }

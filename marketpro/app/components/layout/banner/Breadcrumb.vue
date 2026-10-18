@@ -1,28 +1,26 @@
 <template>
-  <div class="breadcrumb mb-0 py-26 bg-main-two-50">
-    <div class="container container-lg">
-      <div class="breadcrumb-wrapper flex-between flex-wrap gap-16">
-        <h6 class="mb-0">{{ title }}</h6>
-        <ul class="flex-align gap-8 flex-wrap">
-          <li class="text-sm">
-            <NuxtLink to="/" class="text-gray-900 flex-align gap-8 hover-text-main-600">
-              <i class="ph ph-house"></i>
-              Home
-            </NuxtLink>
-          </li>
-          <li class="flex-align">
-            <i class="ph ph-caret-right"></i>
-          </li>
-          <li class="text-sm text-main-600">{{ title }}</li>
-        </ul>
-      </div>
-    </div>
+  <div class="nl-container nl-pagehead">
+    <ol class="nl-crumbs" aria-label="面包屑">
+      <li><NuxtLink to="/">首页</NuxtLink></li>
+      <template v-for="c in trail" :key="c.label">
+        <li aria-hidden="true">/</li>
+        <li><NuxtLink v-if="c.to" :to="c.to">{{ c.label }}</NuxtLink><span v-else>{{ c.label }}</span></li>
+      </template>
+      <li aria-hidden="true">/</li>
+      <li aria-current="page">{{ title }}</li>
+    </ol>
+    <template v-if="!compact">
+      <h1 class="nl-pagehead__title">{{ title }}</h1>
+      <p v-if="sub" class="nl-pagehead__sub">{{ sub }}</p>
+    </template>
+    <slot />
   </div>
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{
-  title: string;
-}>();
-const { title } = props;
+withDefaults(defineProps<{ title: string; sub?: string; compact?: boolean; trail?: { label: string; to?: string }[] }>(), {
+  sub: "",
+  compact: false,
+  trail: () => [],
+});
 </script>

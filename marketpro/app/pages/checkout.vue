@@ -1,8 +1,7 @@
 <template>
   <div>
-    <Breadcrumb title="Checkout" />
+    <Breadcrumb title="结算" sub="积分付款，卡密自动发放。" :trail="[{ label: '购物车', to: '/cart' }]" />
     <CheckoutSection />
-    <ShippingOverviewTwo />
   </div>
 </template>
 
@@ -10,22 +9,8 @@
 import { useSeo } from "~/composables/useSeo";
 import Breadcrumb from "~/components/layout/banner/Breadcrumb.vue";
 import CheckoutSection from "~/components/containers/shop/CheckoutSection.vue";
-import ShippingOverviewTwo from "~/components/containers/shipping/ShippingOverviewTwo.vue";
 
-definePageMeta({
-  layout: "layout-three",
-});
+definePageMeta({ layout: "layout-three" });
 
-useHead({
-  htmlAttrs: {
-    lang: "en",
-    class: "color-two font-exo header-style-two",
-  },
-});
-
-useSeo({
-  title: "结算",
-  
-  keywords: ["ecommerce", "fashion", "electronics", "grocery", "shop", "store", "multipurpose"],
-});
+useSeo({ title: "结算" });
 </script>

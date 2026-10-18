@@ -78,6 +78,7 @@ func (h *APIHandler) GetProducts(c *gin.Context) {
 		MinPrice:   minPrice,
 		MaxPrice:   maxPrice,
 		Sort:       c.DefaultQuery("sort", "default"),
+		PromoOnly:  c.Query("promo") == "1",
 		Page:       page,
 		PageSize:   pageSize,
 	}

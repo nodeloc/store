@@ -1,0 +1,105 @@
+/* NodeLoc Store — generated from tokens.json. Dark is the default; set data-theme="light" on <html> for light. */
+:root, [data-theme="dark"] {
+  --bg: #08090b;
+  --surface: #111317;
+  --surface-sunken: #181b21;
+  --surface-ink: #15181e;
+  --on-ink: #f2f4f6;
+  --border: #23272f;
+  --border-strong: #5f6874;
+  --ink: #f2f4f6;
+  --ink-muted: #a3a9b2;
+  --ink-subtle: #858b95;
+  --brand: #4fd8e0;
+  --brand-hover: #8ae8ee;
+  --brand-soft: #0f3236;
+  --on-brand: #041416;
+  --volt: #cdfc3a;
+  --on-volt: #0b0d10;
+  --danger: #ff7a5c;
+  --danger-soft: #3a160d;
+  --success: #4fdc8c;
+  --success-soft: #0f2f1d;
+  --warning: #f5bb4a;
+  --warning-soft: #36270a;
+  --accent: var(--volt);
+  --focus: var(--brand);
+  --glow-volt: rgba(205,252,58,0.42);
+  --glow-brand: rgba(79,216,224,0.38);
+  --surface-glass: rgba(13,15,18,0.66);
+  --grid-line: rgba(255,255,255,0.045);
+  --shadow-glow: 0 0 0 1px rgba(205,252,58,0.5), 0 10px 40px -8px rgba(205,252,58,0.55);
+  --shadow-sm: 0 1px 0 rgba(255,255,255,0.04), 0 8px 24px -12px rgba(0,0,0,0.8);
+  --shadow-lift: 0 24px 48px -20px rgba(0,0,0,0.9);
+}
+[data-theme="light"] {
+  --bg: #f4f3ee;
+  --surface: #ffffff;
+  --surface-sunken: #eae8e1;
+  --surface-ink: #0e1013;
+  --on-ink: #f2f4f6;
+  --border: #dddbd2;
+  --border-strong: #8f8c82;
+  --ink: #14161a;
+  --ink-muted: #55585f;
+  --ink-subtle: #6b6e75;
+  --brand: #0b6b77;
+  --brand-hover: #08535c;
+  --brand-soft: #dcefee;
+  --on-brand: #ffffff;
+  --volt: #cdfc3a;
+  --on-volt: #0b0d10;
+  --danger: #b5361a;
+  --danger-soft: #fbe6df;
+  --success: #1a7040;
+  --success-soft: #ddf0e3;
+  --warning: #8f5400;
+  --warning-soft: #f8ecd3;
+  --accent: var(--brand);
+  --focus: var(--brand);
+  --glow-volt: rgba(140,180,0,0.30);
+  --glow-brand: rgba(11,107,119,0.22);
+  --surface-glass: rgba(255,255,255,0.72);
+  --grid-line: rgba(20,22,26,0.06);
+  --shadow-glow: 0 0 0 1px rgba(11,13,16,0.9), 0 10px 30px -10px rgba(140,180,0,0.6);
+  --shadow-sm: 0 1px 2px rgba(20,22,26,0.06);
+  --shadow-lift: 0 18px 36px -16px rgba(20,22,26,0.3);
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 72px;
+  --space-9: 96px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+  --dur-fast: 140ms;
+  --dur-base: 260ms;
+  --dur-slow: 700ms;
+  --dur-ambient: 14s;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --font-display: "Bricolage Grotesque", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+.nl-site .display { font-family: var(--font-display); font-size: 76px; line-height: 76px; font-weight: 800; letter-spacing: -0.045em; }
+.nl-site .h1 { font-family: var(--font-display); font-size: 40px; line-height: 44px; font-weight: 700; letter-spacing: -0.02em; }
+.nl-site .h2 { font-family: var(--font-display); font-size: 36px; line-height: 40px; font-weight: 750; letter-spacing: -0.03em; }
+.nl-site .h3 { font-family: var(--font-display); font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; }
+.nl-site .body-lg { font-family: var(--font-sans); font-size: 17px; line-height: 28px; font-weight: 400; }
+.nl-site .body { font-family: var(--font-sans); font-size: 15px; line-height: 24px; font-weight: 400; }
+.nl-site .label { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 500; }
+.nl-site .small { font-family: var(--font-sans); font-size: 13px; line-height: 20px; font-weight: 400; }
+.nl-site .price-lg { font-family: var(--font-mono); font-size: 32px; line-height: 36px; font-weight: 700; letter-spacing: -0.02em; }
+.nl-site .price { font-family: var(--font-mono); font-size: 18px; line-height: 24px; font-weight: 700; }
+.nl-site .code { font-family: var(--font-mono); font-size: 14px; line-height: 22px; font-weight: 500; }
+.nl-site .overline { font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.08em; }

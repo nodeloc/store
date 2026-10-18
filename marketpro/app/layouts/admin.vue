@@ -97,6 +97,9 @@ const route = useRoute();
 const authStore = useAuthStore();
 const collapsed = ref(false);
 
+const { apply } = useNlTheme();
+onMounted(() => apply(false));
+
 const activeMenu = computed(() => {
   const p = route.path;
   if (p === "/admin" || p === "/admin/") return "/admin";

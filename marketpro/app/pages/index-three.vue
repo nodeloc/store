@@ -38,13 +38,6 @@ definePageMeta({
   layout: "layout-three",
 });
 
-useHead({
-  htmlAttrs: {
-    lang: "en",
-    class: "color-two font-outfit header-border-0 header-style-two",
-  },
-});
-
 useSeo({
   title: "Home Three",
   

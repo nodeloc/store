@@ -100,6 +100,8 @@ func main() {
 		apiGroup.GET("/shops/:id", shopHandler.GetShop)
 		apiGroup.GET("/shops/:id/products", shopHandler.GetShopProducts)
 		apiGroup.GET("/deals-of-week", apiHandler.GetDealsOfWeek)
+		apiGroup.GET("/stats", apiHandler.GetPublicStats)
+		apiGroup.GET("/recent-purchases", apiHandler.GetRecentPurchases)
 		apiGroup.POST("/newsletter/subscribe", apiHandler.SubscribeNewsletter)
 		apiGroup.GET("/health", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})

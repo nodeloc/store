@@ -16,13 +16,6 @@ definePageMeta({
   layout: "layout-three",
 });
 
-useHead({
-  htmlAttrs: {
-    lang: "en",
-    class: "color-two font-exo header-style-two",
-  },
-});
-
 useSeo({
   title: "Vendor Details Two",
   

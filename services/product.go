@@ -1,6 +1,8 @@
 package services
 
 import (
+	"time"
+
 	"github.com/nodeloc-faka/database"
 	"github.com/nodeloc-faka/models"
 )
@@ -144,6 +146,7 @@ type SearchParams struct {
 	MinPrice   float64
 	MaxPrice   float64
 	Sort       string // default | price_asc | price_desc | sales | newest
+	PromoOnly  bool   // 仅返回促销进行中的商品
 	Page       int
 	PageSize   int
 }
@@ -173,6 +176,12 @@ func (s *ProductService) SearchProducts(p SearchParams) ([]models.Product, int64
 	}
 	if p.MaxPrice > 0 {
 		db = db.Where("products.price <= ?", p.MaxPrice)
+	}
+	if p.PromoOnly {
+		now := time.Now()
+		db = db.Where("products.promo_price > 0").
+			Where("products.promo_start IS NULL OR products.promo_start <= ?", now).
+			Where("products.promo_end IS NULL OR products.promo_end > ?", now)
 	}
 
 	var total int64

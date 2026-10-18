@@ -1,218 +1,131 @@
 <template>
-  <section class="checkout py-80">
-    <div class="container container-lg">
-      <div class="row">
-        <div class="col-xl-9 col-lg-8">
-          <div class="border border-gray-100 rounded-8 px-30 py-20 mb-40">
-            <!-- 用户信息（只读） -->
-            <h6 class="text-lg fw-semibold mb-16">下单账号</h6>
-            <div class="d-flex align-items-center gap-16 p-16 bg-gray-50 rounded-8 mb-20">
-              <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url"
-                class="rounded-circle" style="width:44px;height:44px;object-fit:cover;flex-shrink:0" />
-              <div v-else class="rounded-circle bg-main-50 d-flex align-items-center justify-content-center flex-shrink-0"
-                style="width:44px;height:44px">
-                <i class="ph ph-user text-main-600 fs-5"></i>
-              </div>
-              <div>
-                <div class="fw-semibold text-gray-900">{{ auth.user?.username }}</div>
-                <div v-if="auth.user?.email" class="text-sm text-gray-500 mt-2">
-                  <i class="ph ph-envelope me-4"></i>{{ auth.user.email }}
-                </div>
-                <div v-if="auth.user?.name && auth.user.name !== auth.user.username"
-                  class="text-sm text-gray-500 mt-2">
-                  <i class="ph ph-identification-card me-4"></i>{{ auth.user.name }}
-                </div>
-              </div>
-            </div>
-            <div class="mb-20">
-              <label class="form-label text-gray-900 fw-medium">备注（选填）</label>
-              <textarea
-                v-model="remark"
-                class="form-control py-16 px-24 border border-gray-200 rounded-8"
-                rows="2"
-                placeholder="如有特殊说明可填写"
-              ></textarea>
-            </div>
+  <div class="nl-container" style="padding-bottom: 96px">
+    <NlEmpty v-if="!cart.items.length" icon="ph ph-shopping-cart-simple" title="没有待结算的商品" text="先把商品加入购物车。">
+      <NuxtLink class="nl-btn nl-btn--volt" to="/shop"><i class="ph-fill ph-lightning"></i>去逛逛</NuxtLink>
+    </NlEmpty>
 
-            <!-- 优惠券 -->
-            <div class="mb-0">
-              <label class="form-label text-gray-900 fw-medium">优惠券码</label>
-              <div class="d-flex gap-8">
-                <input
-                  v-model="couponCode"
-                  type="text"
-                  class="form-control py-12 px-16 border border-gray-200 rounded-8 text-uppercase"
-                  placeholder="输入优惠券码"
-                  :disabled="!!appliedCoupon"
-                  style="flex:1"
-                />
-                <button
-                  v-if="!appliedCoupon"
-                  type="button"
-                  class="btn btn-outline-main rounded-8 px-20 flex-shrink-0"
-                  :disabled="!couponCode.trim() || couponValidating"
-                  @click="validateCoupon"
-                >
-                  {{ couponValidating ? '验证中...' : '使用' }}
-                </button>
-                <button
-                  v-else
-                  type="button"
-                  class="btn btn-outline-danger rounded-8 px-20 flex-shrink-0"
-                  @click="removeCoupon"
-                >
-                  取消
-                </button>
-              </div>
-              <div v-if="couponError" class="text-danger-600 text-sm mt-6">{{ couponError }}</div>
-              <div v-if="appliedCoupon" class="d-flex align-items-center gap-8 mt-8 p-10 bg-success-50 rounded-8">
-                <i class="ph-fill ph-ticket text-success-600 fs-5"></i>
-                <span class="text-success-600 text-sm fw-medium">
-                  已优惠 {{ appliedCoupon.discount.toFixed(0) }} 能量
-                  <span v-if="appliedCoupon.description" class="text-gray-500 fw-normal">（{{ appliedCoupon.description }}）</span>
-                </span>
-              </div>
+    <div v-else class="nl-cartgrid">
+      <div class="nl-stack" style="gap: 16px">
+        <div class="nl-panel">
+          <h2 class="nl-panel__title">下单账号</h2>
+          <div v-if="auth.isAuthenticated" class="nl-userline">
+            <span class="nl-avatar">
+              <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="" />
+              <i v-else class="ph ph-user"></i>
+            </span>
+            <div>
+              <b>{{ auth.user?.username }}</b>
+              <span v-if="auth.user?.email">{{ auth.user.email }}</span>
+            </div>
+          </div>
+          <div v-else class="nl-row">
+            <span class="nl-note nl-note--warning" style="flex: 1"><i class="ph ph-warning"></i>请先登录 NodeLoc 账号再下单。</span>
+            <a class="nl-btn nl-btn--primary nl-btn--sm" href="/auth/login?redirect=/checkout"><i class="ph ph-sign-in"></i>登录</a>
+          </div>
+        </div>
+
+        <div class="nl-panel nl-stack" style="gap: 16px">
+          <label class="nl-field">
+            <span>备注（选填）</span>
+            <textarea v-model="remark" class="nl-input" rows="2" placeholder="如有特殊说明可填写"></textarea>
+          </label>
+          <div class="nl-field">
+            <span>优惠券</span>
+            <div class="nl-inline-form">
+              <input v-model="couponCode" class="nl-input" type="text" placeholder="输入优惠券码" :disabled="!!appliedCoupon" aria-label="优惠券码" />
+              <button v-if="!appliedCoupon" type="button" class="nl-btn nl-btn--secondary" :disabled="!couponCode.trim() || couponValidating" @click="validateCoupon">
+                {{ couponValidating ? "验证中…" : "使用" }}
+              </button>
+              <button v-else type="button" class="nl-btn nl-btn--ghost" @click="removeCoupon">取消</button>
+            </div>
+            <div v-if="couponError" class="nl-note nl-note--danger"><i class="ph ph-warning"></i>{{ couponError }}</div>
+            <div v-if="appliedCoupon" class="nl-note nl-note--success">
+              <i class="ph-fill ph-ticket"></i>已优惠 {{ money(appliedCoupon.discount) }}
+              <template v-if="appliedCoupon.description">（{{ appliedCoupon.description }}）</template>
             </div>
           </div>
         </div>
 
-        <div class="col-xl-3 col-lg-4">
-          <div class="checkout-sidebar">
-            <div class="bg-color-three rounded-8 p-24 text-center">
-              <span class="text-gray-900 text-xl fw-semibold">订单汇总</span>
-            </div>
-
-            <div class="border border-gray-100 rounded-8 px-24 py-40 mt-24">
-              <div class="mb-32 pb-32 border-bottom border-gray-100 flex-between gap-8">
-                <span class="text-gray-900 fw-medium text-xl font-heading-two">商品</span>
-                <span class="text-gray-900 fw-medium text-xl font-heading-two">小计</span>
-              </div>
-
-              <div v-if="cart.items.length === 0" class="text-center text-gray-400 py-16">
-                购物车为空
-              </div>
-
-              <div v-for="item in cart.items" :key="item.id" class="flex-between gap-24 mb-32">
-                <div class="flex-align gap-12">
-                  <span
-                    class="text-gray-900 fw-normal text-md font-heading-two"
-                    style="
-                      max-width: 120px;
-                      overflow: hidden;
-                      text-overflow: ellipsis;
-                      white-space: nowrap;
-                    "
-                    >{{ item.name }}</span
-                  >
-                  <span class="text-gray-900 fw-normal text-md font-heading-two"
-                    ><i class="ph-bold ph-x"></i
-                  ></span>
-                  <span class="text-gray-900 fw-semibold text-md font-heading-two">{{
-                    item.qty
-                  }}</span>
-                </div>
-                <span class="text-gray-900 fw-bold text-md font-heading-two"
-                  ><i class="ph-fill ph-lightning-a" style="font-size:0.85em;vertical-align:middle;margin-right:1px"></i>{{ (item.price * item.qty).toFixed(2) }}</span
-                >
-              </div>
-
-              <div class="border-top border-gray-100 pt-30 mt-30">
-                <div v-if="appliedCoupon" class="mb-16 flex-between gap-8">
-                  <span class="text-gray-600 text-sm">优惠</span>
-                  <span class="text-success-600 text-sm fw-semibold">-{{ appliedCoupon.discount.toFixed(0) }} 能量</span>
-                </div>
-                <div class="mb-32 flex-between gap-8">
-                  <span class="text-gray-900 font-heading-two text-xl fw-semibold">合计</span>
-                  <span class="text-gray-900 font-heading-two text-md fw-bold">
-                    {{ finalTotal.toFixed(0) }} 能量
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-32">
-              <div v-for="method in paymentMethods" :key="method.id" class="payment-item">
-                <div class="form-check common-check common-radio py-16 mb-0">
-                  <input
-                    :id="method.id"
-                    v-model="selectedPayment"
-                    class="form-check-input"
-                    type="radio"
-                    name="payment"
-                    :value="method.id"
-                  />
-                  <label class="form-check-label fw-semibold text-neutral-600" :for="method.id">
-                    {{ method.label }}
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="errorMsg" class="alert alert-danger mt-16 py-8 px-16 rounded-8 text-sm">
-              {{ errorMsg }}
-            </div>
-
-            <button
-              class="btn btn-main mt-40 py-18 w-100 rounded-8 mt-56"
-              :disabled="submitting || cart.items.length === 0"
-              @click="placeOrder"
-            >
-              <span v-if="submitting">处理中...</span>
-              <span v-else>确认下单</span>
-            </button>
+        <div class="nl-panel">
+          <h2 class="nl-panel__title">支付方式</h2>
+          <div class="nl-paypick" role="radiogroup" aria-label="支付方式">
+            <label v-for="m in paymentMethods" :key="m.id" :class="{ 'is-on': selectedPayment === m.id }">
+              <input v-model="selectedPayment" type="radio" name="payment" :value="m.id" />
+              <div><b>{{ m.label }}</b><span>{{ m.desc }}</span></div>
+              <i :class="m.icon"></i>
+            </label>
           </div>
         </div>
       </div>
+
+      <aside class="nl-summary">
+        <div class="nl-panel">
+          <h2 class="nl-panel__title">订单汇总 <small>{{ cart.count }} 件</small></h2>
+          <div class="nl-sum">
+            <div v-for="item in cart.items" :key="item.id">
+              <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ item.name }} × {{ item.qty }}</span>
+              <b>{{ money(item.price * item.qty) }}</b>
+            </div>
+            <div v-if="appliedCoupon"><span>优惠</span><b style="color: var(--success)">-{{ money(appliedCoupon.discount) }}</b></div>
+            <div class="nl-sum__total"><span>应付</span><NlPrice :now="finalTotal" lg /></div>
+          </div>
+          <div v-if="errorMsg" class="nl-note nl-note--danger" style="margin-top: 16px"><i class="ph ph-warning"></i>{{ errorMsg }}</div>
+          <button
+            type="button"
+            class="nl-btn nl-btn--volt nl-btn--lg nl-btn--block"
+            style="margin-top: 20px"
+            :disabled="submitting || !auth.isAuthenticated"
+            @click="placeOrder"
+          >
+            <template v-if="submitting">处理中…</template>
+            <template v-else><i class="ph-fill ph-lightning"></i>确认下单</template>
+          </button>
+        </div>
+        <div class="nl-note nl-note--brand"><i class="ph ph-key"></i>付款成功后卡密自动发放到订单页。</div>
+      </aside>
     </div>
-  </section>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
 import { useCartStore } from "~/stores/cart";
 import { useAuthStore } from "~/stores/auth";
-import { useRouter } from "vue-router";
+import { money } from "~/utils/nl";
 
 const cart = useCartStore();
 const auth = useAuthStore();
 const router = useRouter();
 
-const contact = ref("");
 const remark = ref("");
 const selectedPayment = ref("balance");
 const submitting = ref(false);
 const errorMsg = ref("");
 
-// 优惠券
 const couponCode = ref("");
 const couponValidating = ref(false);
 const couponError = ref("");
 const appliedCoupon = ref<{ coupon_id: number; code: string; discount: number; final_amount: number; description: string } | null>(null);
 
-const finalTotal = computed(() => {
-  if (appliedCoupon.value) return appliedCoupon.value.final_amount;
-  return cart.total;
-});
+const finalTotal = computed(() => (appliedCoupon.value ? appliedCoupon.value.final_amount : cart.total));
+
+const paymentMethods = [
+  { id: "balance", label: "余额支付", desc: "使用账户余额，即时完成", icon: "ph-fill ph-wallet" },
+  { id: "nodeloc", label: "NodeLoc 能量支付", desc: "跳转 NodeLoc 完成支付", icon: "ph-fill ph-lightning" },
+];
 
 async function validateCoupon() {
   couponError.value = "";
   if (!couponCode.value.trim()) return;
   couponValidating.value = true;
   try {
-    // 取购物车中第一个商品的 shop_id（简化：单店铺购物车）
-    const shopId = (cart.items[0] as any)?.shop_id ?? 0;
-    const res = await $fetch<any>("/api/coupons/validate", {
+    const shopId = (cart.items[0] as { shop_id?: number } | undefined)?.shop_id ?? 0;
+    appliedCoupon.value = await $fetch("/api/coupons/validate", {
       method: "POST",
       credentials: "include",
-      body: {
-        code: couponCode.value.trim().toUpperCase(),
-        shop_id: shopId,
-        amount: cart.total,
-      },
+      body: { code: couponCode.value.trim().toUpperCase(), shop_id: shopId, amount: cart.total },
     });
-    appliedCoupon.value = res;
-  } catch (e: any) {
-    couponError.value = e?.data?.error || "优惠券无效";
+  } catch (e: unknown) {
+    couponError.value = (e as { data?: { error?: string } })?.data?.error || "优惠券无效";
     appliedCoupon.value = null;
   } finally {
     couponValidating.value = false;
@@ -225,40 +138,27 @@ function removeCoupon() {
   couponError.value = "";
 }
 
-// 自动用用户邮箱或用户名填充联系方式
-onMounted(() => {
-  contact.value = auth.user?.email || auth.user?.username || "";
-});
-
-const paymentMethods = [
-  { id: "balance", label: "余额支付" },
-  { id: "nodeloc", label: "NodeLoc 能量支付" },
-];
-
 async function placeOrder() {
-  if (cart.items.length === 0) {
+  if (!cart.items.length) {
     errorMsg.value = "购物车为空";
     return;
   }
-  const contactVal = contact.value.trim() || auth.user?.username || "";
-
+  const contactVal = auth.user?.email || auth.user?.username || "";
   submitting.value = true;
   errorMsg.value = "";
   try {
     const orderNos: string[] = [];
     for (const item of cart.items) {
-      const body: any = {
+      const body: Record<string, unknown> = {
         product_id: item.id,
         quantity: item.qty,
         contact: contactVal,
         remark: remark.value,
         pay_method: selectedPayment.value,
       };
-      // 只在第一个商品上应用优惠券（不叠加）
-      if (appliedCoupon.value && orderNos.length === 0) {
-        body.coupon_id = appliedCoupon.value.coupon_id;
-      }
-      const res: any = await $fetch("/api/orders/create", {
+      // Coupons do not stack: only the first order line gets it.
+      if (appliedCoupon.value && orderNos.length === 0) body.coupon_id = appliedCoupon.value.coupon_id;
+      const res = await $fetch<{ order_no?: string; payment_url?: string }>("/api/orders/create", {
         method: "POST",
         credentials: "include",
         signal: AbortSignal.timeout(15000),
@@ -272,17 +172,11 @@ async function placeOrder() {
       }
     }
     cart.clear();
-    if (orderNos.length > 0) {
-      router.push(`/order/${orderNos[0]}`);
-    } else {
-      router.push("/account/orders");
-    }
-  } catch (e: any) {
-    if (e?.name === "TimeoutError" || e?.cause?.name === "TimeoutError") {
-      errorMsg.value = "请求超时，请稍后重试";
-    } else {
-      errorMsg.value = e?.data?.error || "下单失败，请重试";
-    }
+    router.push(orderNos.length ? `/order/${orderNos[0]}` : "/account/orders");
+  } catch (e: unknown) {
+    const err = e as { name?: string; cause?: { name?: string }; data?: { error?: string } };
+    errorMsg.value =
+      err?.name === "TimeoutError" || err?.cause?.name === "TimeoutError" ? "请求超时，请稍后重试" : err?.data?.error || "下单失败，请重试";
   } finally {
     submitting.value = false;
   }

@@ -1,8 +1,7 @@
 <template>
   <div>
-    <Breadcrumb title="Cart" />
+    <Breadcrumb title="购物车" sub="确认商品与数量后前往结算。" />
     <CartSection />
-    <ShippingOverviewTwo />
   </div>
 </template>
 
@@ -10,22 +9,8 @@
 import { useSeo } from "~/composables/useSeo";
 import Breadcrumb from "~/components/layout/banner/Breadcrumb.vue";
 import CartSection from "~/components/containers/shop/CartSection.vue";
-import ShippingOverviewTwo from "~/components/containers/shipping/ShippingOverviewTwo.vue";
 
-definePageMeta({
-  layout: "layout-three",
-});
+definePageMeta({ layout: "layout-three" });
 
-useHead({
-  htmlAttrs: {
-    lang: "en",
-    class: "color-two font-exo header-style-two",
-  },
-});
-
-useSeo({
-  title: "购物车",
-  
-  keywords: ["ecommerce", "fashion", "electronics", "grocery", "shop", "store", "multipurpose"],
-});
+useSeo({ title: "购物车" });
 </script>
