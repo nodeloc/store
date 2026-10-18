@@ -1,13 +1,10 @@
 <template>
   <div>
     <Breadcrumb title="余额管理" />
-    <section class="account py-80">
-      <div class="container container-lg">
-        <div class="row gy-4">
-          <div class="col-lg-3">
-            <AccountSidebar />
-          </div>
-          <div class="col-lg-9">
+    <div class="nl-container" style="padding-bottom: 96px">
+      <div class="nl-account">
+        <AccountSidebar />
+        <div style="min-width: 0">
 
             <!-- 余额卡片 -->
             <div class="border border-gray-100 rounded-8 p-32 mb-24">
@@ -88,10 +85,9 @@
               </template>
             </div>
 
-          </div>
         </div>
       </div>
-    </section>
+    </div>
   </div>
 </template>
 

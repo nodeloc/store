@@ -1,13 +1,10 @@
 <template>
   <div>
     <Breadcrumb title="我的店铺" />
-    <section class="account py-80">
-      <div class="container container-lg">
-        <div class="row gy-4">
-          <div class="col-lg-3">
-            <AccountSidebar />
-          </div>
-          <div class="col-lg-9">
+    <div class="nl-container" style="padding-bottom: 96px">
+      <div class="nl-account">
+        <AccountSidebar />
+        <div style="min-width: 0">
 
             <!-- 加载中 -->
             <div v-if="loading" class="text-center py-48 text-gray-400">加载中...</div>
@@ -560,10 +557,9 @@
               </div>
             </template>
 
-          </div>
         </div>
       </div>
-    </section>
+    </div>
 
     <!-- 商品编辑弹窗 -->
     <div v-if="productDialog" class="modal-backdrop-custom">
