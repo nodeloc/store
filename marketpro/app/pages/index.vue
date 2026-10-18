@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="nl-container" style="padding-top: 16px">
-      <NlHero :stats="stats" />
+      <NlHero :stats="stats" :flash="flash" />
     </div>
 
     <div v-if="chips.length > 1" v-reveal class="nl-container" style="padding-top: 24px" data-reveal>

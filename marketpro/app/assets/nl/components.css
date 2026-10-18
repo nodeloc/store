@@ -232,7 +232,17 @@
 .nl-promo--volt { background: var(--volt); color: var(--on-volt); border-color: transparent; }
 .nl-promo--volt:hover { box-shadow: var(--shadow-glow); border-color: transparent; }
 .nl-promo--brand { background: var(--brand); color: var(--on-brand); border-color: transparent; }
-.nl-promo__title { margin: 0; font: 800 30px/32px var(--font-display); letter-spacing: -0.035em; max-width: 12ch; }
+.nl-promo__title { margin: 0; font: 800 30px/32px var(--font-display); letter-spacing: -0.035em; max-width: 12ch; color: inherit; }
+.nl-promo__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.nl-promo__list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 8px 12px; border-radius: var(--radius-md); background: var(--surface-sunken); }
+.nl-promo--volt .nl-promo__list li { background: rgba(11,13,16,0.86); color: #f2f4f6; }
+.nl-promo__name { font: 600 13px/18px var(--font-sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.nl-promo__deal { flex-shrink: 0; display: inline-flex; align-items: baseline; gap: 6px; font-family: var(--font-mono); }
+.nl-promo__deal b { font-size: 14px; font-weight: 700; }
+.nl-promo--volt .nl-promo__deal b { color: var(--volt); }
+.nl-promo__deal s { font-size: 12px; opacity: .55; }
+.nl-promo__facts { display: grid; gap: 4px; font: 400 13px/20px var(--font-sans); color: var(--ink-muted); }
+.nl-promo__facts b { color: var(--ink); font-family: var(--font-mono); font-weight: 700; margin-right: 2px; }
 .nl-promo__meta { font: 500 12px/16px var(--font-mono); letter-spacing: .04em; opacity: .8; }
 .nl-promo__go { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 var(--space-4); border-radius: var(--radius-pill); background: currentColor; font: 600 14px/1 var(--font-sans); text-decoration: none; }
 .nl-promo__go span, .nl-promo__go i { color: var(--surface); }

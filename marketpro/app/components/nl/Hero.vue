@@ -43,6 +43,15 @@
           <div class="nl-promo__meta">FLASH · 限时特惠</div>
           <h3 class="nl-promo__title">今日闪购</h3>
         </div>
+        <ul v-if="flashItems.length" class="nl-promo__list">
+          <li v-for="it in flashItems" :key="it.p.id">
+            <span class="nl-promo__name">{{ it.p.name }}</span>
+            <span class="nl-promo__deal">
+              <b>{{ money(it.price.now) }}</b>
+              <s v-if="it.price.was && it.price.was > it.price.now">{{ money(it.price.was) }}</s>
+            </span>
+          </li>
+        </ul>
         <span class="nl-promo__go"><span>去抢购</span><i class="ph-bold ph-arrow-right"></i></span>
       </NuxtLink>
       <NuxtLink class="nl-promo" :to="hot ? `/category/${hot.id}` : '/shop?sort=sales'" style="--i: 1">
@@ -50,6 +59,10 @@
         <div>
           <div class="nl-promo__meta" style="color: var(--ink-muted)">HOT · 热门分类</div>
           <h3 class="nl-promo__title">{{ hot ? `${hot.name}专区` : "热销好物榜" }}</h3>
+        </div>
+        <div v-if="hot" class="nl-promo__facts">
+          <span><b>{{ hot.product_count || 0 }}</b> 件商品在售</span>
+          <span v-if="others.length">{{ others.join(" · ") }} 等 {{ catCount }} 个分类</span>
         </div>
         <span class="nl-promo__go" style="color: var(--ink)"><span>去看看</span><i class="ph-bold ph-arrow-right"></i></span>
       </NuxtLink>
@@ -59,7 +72,7 @@
 
 <script setup lang="ts">
 import { useSiteStore } from "~/stores/site";
-import type { NlCategory } from "~/utils/nl";
+import { money, priceOf, type NlCategory, type NlProduct } from "~/utils/nl";
 
 export interface NlStats {
   sold_keys: number;
@@ -68,7 +81,11 @@ export interface NlStats {
   shops: number;
 }
 
-defineProps<{ stats: NlStats | null }>();
+const props = defineProps<{ stats: NlStats | null; flash?: NlProduct[] }>();
+
+const flashItems = computed(() =>
+  (props.flash || []).slice(0, 2).map(p => ({ p, price: priceOf(p) }))
+);
 
 const site = useSiteStore();
 const str = (k: string) => (typeof site.settings[k] === "string" ? (site.settings[k] as string).trim() : "");
@@ -84,6 +101,11 @@ const hot = computed(() => {
   const cats = site.categories as NlCategory[];
   return [...cats].sort((a, b) => (b.product_count || 0) - (a.product_count || 0))[0];
 });
+const others = computed(() => {
+  const cats = site.categories as NlCategory[];
+  return cats.filter(c => c.id !== hot.value?.id).slice(0, 3).map(c => c.name);
+});
+const catCount = computed(() => (site.categories as NlCategory[]).length);
 const hotGlyph = computed(() => {
   const n = hot.value?.name || "HOT";
   const latin = n.match(/[A-Za-z]{2,3}/);
