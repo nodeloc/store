@@ -123,7 +123,7 @@ export function isNew(p: NlProduct) {
 export function productFlags(p: NlProduct) {
   const flags: { label: string; tone: string; icon?: string }[] = [];
   if (p.is_promo_active) flags.push({ label: "限时特惠", tone: "danger" });
-  if ((p.delivery_type ?? 0) === 0) flags.push({ label: "自动发货", tone: "volt", icon: "ph-fill ph-lightning" });
+  if ((p.delivery_type ?? 0) !== 1) flags.push({ label: "自动发货", tone: "volt", icon: "ph-fill ph-lightning" });
   if (flags.length < 2 && isNew(p)) flags.push({ label: "新品", tone: "brand" });
   if (flags.length < 2 && (p.sales_count || 0) >= 100) flags.push({ label: "热销", tone: "ink" });
   return flags.slice(0, 2);

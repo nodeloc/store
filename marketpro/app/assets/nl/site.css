@@ -175,6 +175,7 @@ html.nl-on[data-theme="light"], html.nl-on[data-theme="light"] body { color-sche
 .nl-order__product a:hover { color: var(--brand) !important; }
 .nl-tickets { display: grid; gap: var(--space-3); }
 .nl-deliver { white-space: pre-wrap; font: 500 14px/22px var(--font-mono); color: var(--ink); background: var(--surface-sunken); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); overflow-wrap: anywhere; }
+.nl-deliver--doc { margin: 0; max-height: 480px; overflow: auto; font-size: 13px; line-height: 20px; }
 .nl-sum { display: grid; gap: var(--space-2); font-size: 14px; color: var(--ink-muted); }
 .nl-sum > div { display: flex; justify-content: space-between; gap: var(--space-3); }
 .nl-sum b { color: var(--ink); font-family: var(--font-mono); font-weight: 600; }

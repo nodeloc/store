@@ -35,8 +35,8 @@
         </el-table-column>
         <el-table-column label="发货方式" width="110">
           <template #default="{ row }">
-            <el-tag :type="row.delivery_type === 1 ? 'warning' : 'primary'" size="small">
-              {{ row.delivery_type === 1 ? '手动发货' : '卡密自动' }}
+            <el-tag :type="row.delivery_type === 1 ? 'warning' : row.delivery_type === 2 ? 'success' : 'primary'" size="small">
+              {{ row.delivery_type === 1 ? '手动发货' : row.delivery_type === 2 ? '固定内容' : '卡密自动' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -49,7 +49,7 @@
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="warning" size="small" @click="goCardKeys(row)">卡密</el-button>
+            <el-button v-if="(row.delivery_type ?? 0) === 0" link type="warning" size="small" @click="goCardKeys(row)">卡密</el-button>
             <el-popconfirm title="确认删除？" @confirm="deleteItem(row.id)">
               <template #reference>
                 <el-button link type="danger" size="small">删除</el-button>
@@ -191,10 +191,23 @@
             <el-radio :value="0">
               <span><i class="ph ph-key" style="margin-right:4px"></i>卡密自动发货</span>
             </el-radio>
+            <el-radio :value="2">
+              <span><i class="ph ph-file-text" style="margin-right:4px"></i>固定内容自动发货（源码 / 教程 / 链接）</span>
+            </el-radio>
             <el-radio :value="1">
               <span><i class="ph ph-hand-coins" style="margin-right:4px"></i>手动发货（TG 号 / 实物 / 其他）</span>
             </el-radio>
           </el-radio-group>
+        </el-form-item>
+
+        <el-form-item v-if="form.delivery_type === 2" label="发货内容" required>
+          <el-input
+            v-model="form.fixed_content"
+            type="textarea"
+            :rows="8"
+            class="mono-input"
+            placeholder="买家付款后在订单页看到的完整内容（所有买家相同，付款前不公开）"
+          />
         </el-form-item>
 
         <el-form-item label="状态">
@@ -243,6 +256,7 @@ const defaultForm = () => ({
   sort: 0,
   is_active: true,
   delivery_type: 0,
+  fixed_content: "",
   promo_price: 0,
   promo_start: null as string | null,
   promo_end: null as string | null,
@@ -293,6 +307,7 @@ function openEdit(row: any) {
     sort: row.sort,
     is_active: row.is_active,
     delivery_type: row.delivery_type ?? 0,
+    fixed_content: row.fixed_content ?? "",
     promo_price: row.promo_price ?? 0,
     promo_start: row.promo_start ? row.promo_start.slice(0, 19) : null,
     promo_end: row.promo_end ? row.promo_end.slice(0, 19) : null,
@@ -346,6 +361,7 @@ function handleUploadError() {
 
 async function save() {
   if (!form.value.name || !form.value.category_id) return ElMessage.warning("请填写商品名称和分类");
+  if (form.value.delivery_type === 2 && !form.value.fixed_content.trim()) return ElMessage.warning("固定内容发货需要填写发货内容");
   saving.value = true;
   try {
     const toRFC3339 = (s: string | null) => s ? new Date(s).toISOString() : null;
@@ -361,7 +377,7 @@ async function save() {
     ElMessage.success("保存成功");
     dialogVisible.value = false;
     await fetchProducts();
-  } catch { ElMessage.error("保存失败"); } finally { saving.value = false; }
+  } catch (e: any) { ElMessage.error(e?.data?.error || "保存失败"); } finally { saving.value = false; }
 }
 
 async function deleteItem(id: number) {
@@ -458,4 +474,5 @@ onMounted(() => { fetchProducts(); fetchCategories(); });
 .upload-placeholder .el-icon { font-size: 22px; }
 
 .images-tip { font-size: 12px; color: #909399; margin-top: 6px; }
+.mono-input :deep(textarea) { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
 </style>

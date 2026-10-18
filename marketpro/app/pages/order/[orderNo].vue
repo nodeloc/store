@@ -29,13 +29,13 @@
               :created-at="order.created_at"
               :paid-at="order.paid_at"
               :updated-at="order.updated_at"
-              :auto-delivered="!!order.card_keys?.length"
+              :auto-delivered="!!order.card_keys?.length || isFixed"
             />
           </div>
 
           <div v-if="order.status === 0" class="nl-panel">
             <div class="nl-note nl-note--warning" style="margin-bottom: 16px">
-              <i class="ph ph-clock"></i>订单待支付，完成付款后卡密会自动发放到本页面。
+              <i class="ph ph-clock"></i>{{ order.product?.delivery_type === 1 ? "订单待支付，付款后等待卖家发货，发货内容会显示在本页面。" : "订单待支付，完成付款后商品会自动发放到本页面。" }}
             </div>
             <a v-if="order.payment_url" class="nl-btn nl-btn--volt nl-btn--lg" :href="order.payment_url">
               <i class="ph-fill ph-lightning"></i>前往支付 <i class="ph ph-arrow-right"></i>
@@ -52,7 +52,16 @@
             </div>
           </div>
 
-          <div v-if="order.deliver_content && (order.status === 4 || order.status === 2)" class="nl-panel">
+          <div v-if="order.deliver_content && isFixed && order.status === 2" class="nl-panel">
+            <h2 class="nl-panel__title">
+              <i class="ph-fill ph-file-text"></i>商品内容
+              <button type="button" class="nl-btn nl-btn--ghost nl-btn--sm" style="margin-left: auto" @click="copyDeliver">
+                <i :class="copied ? 'ph ph-check' : 'ph ph-copy'"></i>{{ copied ? "已复制" : "复制全部" }}
+              </button>
+            </h2>
+            <pre class="nl-deliver nl-deliver--doc">{{ order.deliver_content }}</pre>
+          </div>
+          <div v-else-if="order.deliver_content && (order.status === 4 || order.status === 2)" class="nl-panel">
             <h2 class="nl-panel__title"><i class="ph-fill ph-package" style="color: var(--accent)"></i>卖家已发货</h2>
             <div class="nl-deliver">{{ order.deliver_content }}</div>
             <p v-if="order.deliver_note" style="margin-top: 8px; font-size: 13px; color: var(--ink-muted)">备注：{{ order.deliver_note }}</p>
@@ -194,6 +203,26 @@ const reviewError = ref("");
 const reviewForm = ref({ rating: 5, title: "", content: "" });
 
 const status = computed(() => ORDER_STATUS[order.value?.status ?? -1] || { label: "未知", tone: "", icon: "ph ph-question" });
+const isFixed = computed(() => order.value?.product?.delivery_type === 2);
+const copied = ref(false);
+
+async function copyDeliver() {
+  const text = order.value?.deliver_content || "";
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
+  copied.value = true;
+  setTimeout(() => (copied.value = false), 2000);
+}
 const ratingLabel = computed(() => ["点击星星评分", "非常差", "较差", "一般", "满意", "非常满意"][reviewForm.value.rating] || "");
 
 function ticketRows(k: CardKey) {

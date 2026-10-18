@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -326,7 +327,11 @@ func (h *ShopHandler) MyShopProducts(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, products)
+	out := make([]models.OwnerProduct, len(products))
+	for i, p := range products {
+		out[i] = models.ToOwnerProduct(p)
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 // myApprovedShop 获取当前用户的已审核店铺（内部辅助）
@@ -360,6 +365,7 @@ func (h *ShopHandler) MyShopCreateProduct(c *gin.Context) {
 		Images       string     `json:"images"`
 		IsActive     bool       `json:"is_active"`
 		DeliveryType int        `json:"delivery_type"`
+		FixedContent string     `json:"fixed_content"`
 		StockCount   int        `json:"stock_count"`
 		PromoPrice   float64    `json:"promo_price"`
 		PromoStart   *time.Time `json:"promo_start"`
@@ -373,6 +379,7 @@ func (h *ShopHandler) MyShopCreateProduct(c *gin.Context) {
 		req.Images = "[]"
 	}
 	product := &models.Product{
+		FixedContent: req.FixedContent,
 		ShopID:       shop.ID,
 		CategoryID:   req.CategoryID,
 		Name:         req.Name,
@@ -388,12 +395,20 @@ func (h *ShopHandler) MyShopCreateProduct(c *gin.Context) {
 		PromoStart:   req.PromoStart,
 		PromoEnd:     req.PromoEnd,
 	}
+	if !models.ValidDeliveryType(product.DeliveryType) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "发货方式无效"})
+		return
+	}
+	if product.DeliveryType == models.DeliveryTypeFixed && strings.TrimSpace(product.FixedContent) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "固定内容发货需要填写发货内容"})
+		return
+	}
 	if err := h.productService.Create(product); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建商品失败"})
 		return
 	}
 	product.ComputePromo()
-	c.JSON(http.StatusOK, product)
+	c.JSON(http.StatusOK, models.ToOwnerProduct(*product))
 }
 
 // MyShopUpdateProduct 店主更新商品
@@ -418,6 +433,7 @@ func (h *ShopHandler) MyShopUpdateProduct(c *gin.Context) {
 		Images       *string    `json:"images"`
 		IsActive     *bool      `json:"is_active"`
 		DeliveryType *int       `json:"delivery_type"`
+		FixedContent *string    `json:"fixed_content"`
 		StockCount   *int       `json:"stock_count"`
 		PromoPrice   *float64   `json:"promo_price"`
 		PromoStart   *time.Time `json:"promo_start"`
@@ -438,17 +454,26 @@ func (h *ShopHandler) MyShopUpdateProduct(c *gin.Context) {
 	}
 	if req.IsActive != nil { product.IsActive = *req.IsActive }
 	if req.DeliveryType != nil { product.DeliveryType = *req.DeliveryType }
+	if req.FixedContent != nil { product.FixedContent = *req.FixedContent }
 	if req.StockCount != nil { product.StockCount = *req.StockCount }
 	if req.PromoPrice != nil { product.PromoPrice = *req.PromoPrice }
 	product.PromoStart = req.PromoStart
 	product.PromoEnd = req.PromoEnd
+	if !models.ValidDeliveryType(product.DeliveryType) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "发货方式无效"})
+		return
+	}
+	if product.DeliveryType == models.DeliveryTypeFixed && strings.TrimSpace(product.FixedContent) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "固定内容发货需要填写发货内容"})
+		return
+	}
 
 	if err := h.productService.Update(product); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新商品失败"})
 		return
 	}
 	product.ComputePromo()
-	c.JSON(http.StatusOK, product)
+	c.JSON(http.StatusOK, models.ToOwnerProduct(*product))
 }
 
 // MyShopDeleteProduct 店主删除商品
@@ -511,12 +536,16 @@ func (h *ShopHandler) MyShopAddCardKeys(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	count, err := h.cardKeyService.BatchCreate(pid, req.CardsText)
+	res, err := h.cardKeyService.BatchCreate(pid, req.CardsText)
 	if err != nil {
+		if se, ok := err.(*services.ServiceError); ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": se.Message})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "添加卡密失败"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "添加成功", "count": count})
+	c.JSON(http.StatusOK, gin.H{"message": "添加成功", "count": res.Added, "duplicates": res.Duplicates, "invalid": res.Invalid, "lines": res.Lines})
 }
 
 // MyShopDeleteCardKey 删除卡密

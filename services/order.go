@@ -202,8 +202,8 @@ func (s *OrderService) CreatePendingOrder(userID, productID uint, quantity int, 
 		return nil, ErrProductNotFound
 	}
 
-	// 检查库存
-	if product.DeliveryType == models.DeliveryTypeManual {
+	// 检查库存：卡密商品按可售卡密数，手动/固定内容商品按店主设定的库存
+	if product.DeliveryType != models.DeliveryTypeCardKey {
 		if product.StockCount < quantity {
 			return nil, ErrInsufficientStock
 		}
@@ -318,6 +318,16 @@ func (s *OrderService) ProcessPaymentCallback(transactionID string, amount, plat
 		return s.FindByID(order.ID)
 	}
 
+	// 固定内容：直接把内容写入订单并完成
+	if order.Product != nil && order.Product.DeliveryType == models.DeliveryTypeFixed {
+		order.Status = models.OrderStatusCompleted
+		order.DeliverContent = order.Product.FixedContent
+		if err := s.completeOrderTx(order, nil); err != nil {
+			return nil, err
+		}
+		return s.FindByID(order.ID)
+	}
+
 	// 卡密自动发货：获取卡密并完成订单
 	cardKeyService := NewCardKeyService()
 	availableCards, err := cardKeyService.GetAvailableByProduct(order.ProductID, order.Quantity)
@@ -368,6 +378,21 @@ func (s *OrderService) CreateAndProcess(userID, productID uint, quantity int, co
 		}
 		database.GetDB().Model(&models.Product{}).Where("id = ?", productID).
 			UpdateColumn("stock_count", gorm.Expr("stock_count - ?", quantity))
+		return s.FindByID(order.ID)
+	}
+
+	if product.DeliveryType == models.DeliveryTypeFixed {
+		if product.StockCount < quantity {
+			return nil, ErrInsufficientStock
+		}
+		order.Status = models.OrderStatusCompleted
+		order.DeliverContent = product.FixedContent
+		if err := s.Create(order); err != nil {
+			return nil, err
+		}
+		if err := s.completeOrderTx(order, nil); err != nil {
+			return nil, err
+		}
 		return s.FindByID(order.ID)
 	}
 
@@ -438,6 +463,31 @@ func (s *OrderService) CreateAndProcessByBalance(userID, productID uint, quantit
 			}
 			return tx.Model(&models.Product{}).Where("id = ?", productID).
 				UpdateColumn("stock_count", gorm.Expr("stock_count - ?", quantity)).Error
+		}); err != nil {
+			s.Cancel(order.ID)
+			return nil, err
+		}
+		return s.FindByID(order.ID)
+	}
+
+	// 固定内容：扣余额 + 写入内容 + 结算
+	if product.DeliveryType == models.DeliveryTypeFixed {
+		if product.StockCount < quantity {
+			s.Cancel(order.ID)
+			return nil, ErrInsufficientStock
+		}
+		if err := database.GetDB().Transaction(func(tx *gorm.DB) error {
+			if err := balanceService.DeductBalance(tx, userID, totalAmount,
+				models.BalanceTxPurchase,
+				fmt.Sprintf("余额支付订单 %s", order.OrderNo),
+				"order", order.ID,
+			); err != nil {
+				return err
+			}
+			order.Status = models.OrderStatusCompleted
+			order.PaidAt = &now
+			order.DeliverContent = product.FixedContent
+			return s.completeOrderTxWithDB(tx, order, nil)
 		}); err != nil {
 			s.Cancel(order.ID)
 			return nil, err
@@ -582,28 +632,37 @@ func (s *OrderService) completeOrderTxWithDB(tx *gorm.DB, order *models.Order, a
 		return err
 	}
 
-	// 分配卡密
-	cardIDs := make([]uint, len(availableCards))
-	for i, card := range availableCards {
-		cardIDs[i] = card.ID
-	}
-	if err := cardKeyService.MarkAsSoldTx(tx, cardIDs, order.ID); err != nil {
-		return err
-	}
-
-	// 更新商品库存和销量（直接 SQL，无需重新查询）
+	// 更新销量（直接 SQL，无需重新查询）
 	if err := tx.Model(&models.Product{}).Where("id = ?", order.ProductID).
 		UpdateColumn("sales_count", gorm.Expr("sales_count + ?", order.Quantity)).Error; err != nil {
 		return err
 	}
-	// 重新计算库存（必须在同一事务内，否则新连接会被当前事务的行锁阻塞 50s）
-	var availableCount int64
-	tx.Model(&models.CardKey{}).
-		Where("product_id = ? AND status = ?", order.ProductID, models.CardKeyStatusAvailable).
-		Count(&availableCount)
-	if err := tx.Model(&models.Product{}).Where("id = ?", order.ProductID).
-		Update("stock_count", availableCount).Error; err != nil {
-		return err
+
+	if len(availableCards) > 0 {
+		// 分配卡密
+		cardIDs := make([]uint, len(availableCards))
+		for i, card := range availableCards {
+			cardIDs[i] = card.ID
+		}
+		if err := cardKeyService.MarkAsSoldTx(tx, cardIDs, order.ID); err != nil {
+			return err
+		}
+		// 重新计算库存（必须在同一事务内，否则新连接会被当前事务的行锁阻塞 50s）
+		var availableCount int64
+		tx.Model(&models.CardKey{}).
+			Where("product_id = ? AND status = ?", order.ProductID, models.CardKeyStatusAvailable).
+			Count(&availableCount)
+		if err := tx.Model(&models.Product{}).Where("id = ?", order.ProductID).
+			Update("stock_count", availableCount).Error; err != nil {
+			return err
+		}
+	} else {
+		// 固定内容：扣减店主设定的库存。下单前已校验库存；到这里买家可能已付款，
+		// 所以并发超卖时只把库存压到 0，而不是让已付款订单失败。
+		if err := tx.Model(&models.Product{}).Where("id = ?", order.ProductID).
+			UpdateColumn("stock_count", gorm.Expr("GREATEST(stock_count - ?, 0)", order.Quantity)).Error; err != nil {
+			return err
+		}
 	}
 
 	// 店主结算：ShopID > 0 且未结算

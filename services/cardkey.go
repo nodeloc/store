@@ -1,8 +1,11 @@
 package services
 
 import (
+	"fmt"
+	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nodeloc-faka/database"
 	"github.com/nodeloc-faka/models"
@@ -27,48 +30,140 @@ func (s *CardKeyService) Create(cardKey *models.CardKey) error {
 	return err
 }
 
-// BatchCreate 批量创建卡密
-func (s *CardKeyService) BatchCreate(productID uint, cardsText string) (int, error) {
-	lines := strings.Split(cardsText, "\n")
-	count := 0
+// 批量导入限制
+const (
+	cardKeyMaxLen       = 500  // 与 card_no/card_pwd 列宽一致
+	cardKeyMaxBatchRows = 5000 // 单次导入的最大行数
+)
 
+var (
+	ErrCardKeysTooMany       = &ServiceError{Message: fmt.Sprintf("单次最多导入 %d 条卡密，请分批添加", cardKeyMaxBatchRows)}
+	ErrCardKeysLookLikeCode  = &ServiceError{Message: "内容看起来像源码或文档，而不是一行一条的卡密。整段内容请把商品发货方式改为「固定内容自动发货」。"}
+	ErrCardKeysFixedProduct  = &ServiceError{Message: "该商品为固定内容发货，不需要添加卡密"}
+	ErrCardKeysManualProduct = &ServiceError{Message: "该商品为手动发货，卡密不会自动发出。如需自动发货，请先把发货方式改为「卡密自动发货」。"}
+)
+
+// CardKeyBatchResult 批量导入结果
+type CardKeyBatchResult struct {
+	Added      int `json:"count"`
+	Duplicates int `json:"duplicates"`
+	Invalid    int `json:"invalid"`
+	Lines      int `json:"lines"`
+}
+
+var (
+	codeOnlyPunct   = regexp.MustCompile(`^[\[\]{}()<>;,:]+$`)
+	codeKeywordHead = regexp.MustCompile(`^(import|from|def|class|return|if|elif|else|for|while|try|except|finally|with|print|function|const|let|var|public|private|package|async|await|pass|break|continue|#include)\b`)
+	codeShellHead   = regexp.MustCompile(`^(pip3?|npm|yarn|pnpm|python3?|node|sudo|git|curl|wget|chmod|docker|apt|yum)\s`)
+	codeCommentHead = regexp.MustCompile("^(#|//|/\\*|\\*/|<!--|```)")
+	codeTail        = regexp.MustCompile(`[{:;(,\\：]$`)
+	codeAssign      = regexp.MustCompile(`\s(=|==|\+=|-=|=>)\s`)
+)
+
+// looksLikeCode 判断一行是否更像源码/配置而不是卡密
+func looksLikeCode(line string) bool {
+	return codeOnlyPunct.MatchString(line) ||
+		codeKeywordHead.MatchString(line) ||
+		codeShellHead.MatchString(line) ||
+		codeCommentHead.MatchString(line) ||
+		codeTail.MatchString(line) ||
+		codeAssign.MatchString(line)
+}
+
+// batchLooksLikeCode 至少 5 行且 30% 以上的行像代码时，认为整段是源码/文档
+func batchLooksLikeCode(lines []string) bool {
+	codeLike := 0
 	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+		if looksLikeCode(line) {
+			codeLike++
 		}
+	}
+	return codeLike >= 5 && codeLike*100 >= len(lines)*30
+}
 
-		// 支持两种格式：
-		// 1. 卡号----密码
-		// 2. 只有卡号
-		var cardNo, cardPwd string
-		if strings.Contains(line, "----") {
-			parts := strings.SplitN(line, "----", 2)
-			cardNo = strings.TrimSpace(parts[0])
-			if len(parts) > 1 {
-				cardPwd = strings.TrimSpace(parts[1])
-			}
-		} else {
-			cardNo = line
-		}
+func parseCardLine(line string) (cardNo, cardPwd string) {
+	if strings.Contains(line, "----") {
+		parts := strings.SplitN(line, "----", 2)
+		return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+	}
+	return line, ""
+}
 
-		cardKey := &models.CardKey{
-			ProductID: productID,
-			CardNo:    cardNo,
-			CardPwd:   cardPwd,
-			Status:    models.CardKeyStatusAvailable,
-		}
+// BatchCreate 批量创建卡密：每行一条，支持「卡号」或「卡号----密码」。
+// 超长/空卡号计为无效，批内及库内已存在的计为重复，整体像源码时拒绝导入。
+func (s *CardKeyService) BatchCreate(productID uint, cardsText string) (*CardKeyBatchResult, error) {
+	db := database.GetDB()
 
-		if err := database.GetDB().Create(cardKey).Error; err != nil {
-			continue
-		}
-		count++
+	var product models.Product
+	if err := db.Select("id", "delivery_type").First(&product, productID).Error; err != nil {
+		return nil, ErrProductNotFound
+	}
+	switch product.DeliveryType {
+	case models.DeliveryTypeFixed:
+		return nil, ErrCardKeysFixedProduct
+	case models.DeliveryTypeManual:
+		return nil, ErrCardKeysManualProduct
 	}
 
-	// 更新商品库存
-	NewProductService().UpdateStock(productID)
+	var lines []string
+	for _, raw := range strings.Split(strings.ReplaceAll(cardsText, "\r\n", "\n"), "\n") {
+		if line := strings.TrimSpace(raw); line != "" {
+			lines = append(lines, line)
+		}
+	}
+	res := &CardKeyBatchResult{Lines: len(lines)}
+	if len(lines) == 0 {
+		return res, nil
+	}
+	if len(lines) > cardKeyMaxBatchRows {
+		return nil, ErrCardKeysTooMany
+	}
 
-	return count, nil
+	if batchLooksLikeCode(lines) {
+		return nil, ErrCardKeysLookLikeCode
+	}
+
+	type pair struct{ No, Pwd string }
+	var existing []pair
+	if err := db.Model(&models.CardKey{}).Select("card_no AS no, card_pwd AS pwd").
+		Where("product_id = ?", productID).Scan(&existing).Error; err != nil {
+		return nil, err
+	}
+	seen := make(map[pair]struct{}, len(existing)+len(lines))
+	for _, e := range existing {
+		seen[e] = struct{}{}
+	}
+
+	toCreate := make([]models.CardKey, 0, len(lines))
+	for _, line := range lines {
+		no, pwd := parseCardLine(line)
+		if no == "" || utf8.RuneCountInString(no) > cardKeyMaxLen || utf8.RuneCountInString(pwd) > cardKeyMaxLen {
+			res.Invalid++
+			continue
+		}
+		k := pair{no, pwd}
+		if _, dup := seen[k]; dup {
+			res.Duplicates++
+			continue
+		}
+		seen[k] = struct{}{}
+		toCreate = append(toCreate, models.CardKey{
+			ProductID: productID,
+			CardNo:    no,
+			CardPwd:   pwd,
+			Status:    models.CardKeyStatusAvailable,
+		})
+	}
+
+	if len(toCreate) > 0 {
+		if err := db.CreateInBatches(toCreate, 200).Error; err != nil {
+			return nil, err
+		}
+	}
+	res.Added = len(toCreate)
+
+	NewProductService().UpdateStock(productID)
+	return res, nil
 }
 
 // Update 更新卡密

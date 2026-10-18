@@ -94,7 +94,10 @@ type Product struct {
 	SalesCount  int        `gorm:"default:0" json:"sales_count"`
 	Sort        int        `gorm:"default:0" json:"sort"`
 	IsActive    bool       `gorm:"default:true" json:"is_active"`
-	DeliveryType int       `gorm:"default:0" json:"delivery_type"` // 0=卡密自动发货 1=手动发货
+	DeliveryType int       `gorm:"default:0" json:"delivery_type"` // 0=卡密自动发货 1=手动发货 2=固定内容自动发货
+	// 固定内容发货：每位买家付款后收到同一份内容。json:"-" 保证它不会出现在公开商品接口里，
+	// 只有店主/管理员接口显式返回，买家在付款后通过订单的 deliver_content 看到。
+	FixedContent string    `gorm:"type:longtext" json:"-"`
 	// 限时促销
 	PromoPrice  float64    `gorm:"default:0" json:"promo_price"`   // 0 = 无促销
 	PromoStart  *time.Time `json:"promo_start"`
@@ -204,7 +207,24 @@ const (
 const (
 	DeliveryTypeCardKey = 0 // 卡密自动发货
 	DeliveryTypeManual  = 1 // 手动发货
+	DeliveryTypeFixed   = 2 // 固定内容自动发货（源码/教程/链接，所有买家相同）
 )
+
+// ValidDeliveryType 校验发货方式取值
+func ValidDeliveryType(t int) bool {
+	return t == DeliveryTypeCardKey || t == DeliveryTypeManual || t == DeliveryTypeFixed
+}
+
+// OwnerProduct 店主/管理员视角的商品，额外带出固定发货内容
+type OwnerProduct struct {
+	Product
+	FixedContent string `json:"fixed_content"`
+}
+
+// ToOwnerProduct 转换为店主/管理员视角
+func ToOwnerProduct(p Product) OwnerProduct {
+	return OwnerProduct{Product: p, FixedContent: p.FixedContent}
+}
 
 // 支付方式
 const (

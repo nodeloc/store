@@ -65,6 +65,7 @@
             :rows="10"
             placeholder="每行一条卡密，支持格式：&#10;卡号&#10;或&#10;卡号----密码"
           />
+          <div class="form-tip">共 {{ addLineCount }} 条，重复卡密自动跳过；源码、教程等整段内容请改用「固定内容自动发货」。</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -96,6 +97,7 @@ const pageSize = ref(50);
 const total = ref(0);
 const filterProductId = ref<number | null>(productId.value);
 const addForm = ref({ product_id: productId.value ?? (undefined as number | undefined), cards_text: "" });
+const addLineCount = computed(() => addForm.value.cards_text.split("\n").filter((l) => l.trim()).length);
 
 async function fetchCardKeys() {
   loading.value = true;
@@ -110,13 +112,16 @@ async function addCardKeys() {
   if (!addForm.value.product_id || !addForm.value.cards_text) return ElMessage.warning("请填写商品ID和卡密内容");
   saving.value = true;
   try {
-    const res = await post<{ count: number }>("/api/admin/card-keys", addForm.value);
-    ElMessage.success(`成功添加 ${res.count} 条卡密`);
+    const res = await post<{ count: number; duplicates?: number; invalid?: number }>("/api/admin/card-keys", addForm.value);
+    const parts = [`新增 ${res.count} 条`];
+    if (res.duplicates) parts.push(`跳过重复 ${res.duplicates} 条`);
+    if (res.invalid) parts.push(`无效 ${res.invalid} 条`);
+    ElMessage({ type: res.duplicates || res.invalid ? "warning" : "success", message: parts.join("，") });
     dialogVisible.value = false;
     addForm.value.cards_text = "";
     filterProductId.value = addForm.value.product_id ?? null;
     await fetchCardKeys();
-  } catch { ElMessage.error("添加失败"); } finally { saving.value = false; }
+  } catch (e: any) { ElMessage.error(e?.data?.error || "添加失败"); } finally { saving.value = false; }
 }
 
 async function deleteItem(id: number) {
@@ -131,4 +136,5 @@ onMounted(fetchCardKeys);
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .page-title { font-size: 20px; font-weight: 600; color: #1d2129; }
 .pagination { display: flex; justify-content: flex-end; margin-top: 16px; }
+.form-tip { font-size: 12px; line-height: 18px; color: #909399; margin-top: 6px; }
 </style>

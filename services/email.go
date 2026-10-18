@@ -3,6 +3,7 @@ package services
 import (
 	"crypto/tls"
 	"fmt"
+	"html"
 	"mime"
 	"net"
 	"net/smtp"
@@ -172,22 +173,29 @@ func (s *EmailService) SendOrderCompleted(order *models.Order) {
 		productName = order.Product.Name
 	}
 
+	intro, heading := "以下是您购买的卡密：", "卡密信息"
+	deliverBlock := fmt.Sprintf(`<ul style="background:#f9f9f9;padding:16px;border-radius:8px">%s</ul>`, cardLines.String())
+	if len(order.CardKeys) == 0 && order.DeliverContent != "" {
+		intro, heading = "以下是您购买的商品内容：", "商品内容"
+		deliverBlock = fmt.Sprintf(`<pre style="background:#f9f9f9;padding:16px;border-radius:8px;white-space:pre-wrap;word-break:break-all;font-family:monospace">%s</pre>`, html.EscapeString(order.DeliverContent))
+	}
+
 	body := fmt.Sprintf(`
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
   <h2 style="color:#e6162d">订单完成通知</h2>
-  <p>您好，您的订单已完成，以下是您购买的卡密：</p>
+  <p>您好，您的订单已完成，%s</p>
   <table style="width:100%%;border-collapse:collapse;margin:16px 0">
     <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">订单号</td><td style="padding:8px">%s</td></tr>
     <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">商品</td><td style="padding:8px">%s</td></tr>
     <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">数量</td><td style="padding:8px">%d</td></tr>
     <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">金额</td><td style="padding:8px">%g 能量</td></tr>
   </table>
-  <h3>卡密信息</h3>
-  <ul style="background:#f9f9f9;padding:16px;border-radius:8px">%s</ul>
-  <p style="color:#888;font-size:12px">请妥善保管您的卡密，如有问题请联系店铺客服。</p>
-</div>`, order.OrderNo, productName, order.Quantity, order.TotalAmount, cardLines.String())
+  <h3>%s</h3>
+  %s
+  <p style="color:#888;font-size:12px">请妥善保管，如有问题请联系店铺客服。</p>
+</div>`, intro, order.OrderNo, productName, order.Quantity, order.TotalAmount, heading, deliverBlock)
 
-	s.sendAsync([]string{order.User.Email}, "订单完成 - 您的卡密已发放", body)
+	s.sendAsync([]string{order.User.Email}, "订单完成 - 商品已发放", body)
 }
 
 // SendOrderShipped 手动发货通知 → 发给买家

@@ -11,6 +11,7 @@ import (
 	"github.com/nodeloc-faka/database"
 	"github.com/nodeloc-faka/models"
 	"github.com/nodeloc-faka/services"
+	"gorm.io/gorm"
 )
 
 // PaymentHandler 支付处理器
@@ -154,10 +155,20 @@ func (h *PaymentHandler) completeOrderFree(order *models.Order) {
 	order.Status = models.OrderStatusCompleted
 	order.PayMethod = "free"
 	order.PaidAt = &now
+	product, _ := h.productService.FindByID(order.ProductID)
+	isFixed := product != nil && product.DeliveryType == models.DeliveryTypeFixed
+	if isFixed {
+		order.DeliverContent = product.FixedContent
+	}
 	database.GetDB().Save(order)
 
 	// 更新商品库存和销量
-	h.productService.UpdateStock(order.ProductID)
+	if isFixed {
+		database.GetDB().Model(&models.Product{}).Where("id = ?", order.ProductID).
+			UpdateColumn("stock_count", gorm.Expr("GREATEST(stock_count - ?, 0)", order.Quantity))
+	} else {
+		h.productService.UpdateStock(order.ProductID)
+	}
 	h.productService.IncrementSales(order.ProductID, order.Quantity)
 }
 

@@ -121,6 +121,14 @@ func (s *ProductService) GetWithPagination(page, pageSize int) ([]models.Product
 
 // UpdateStock 更新库存
 func (s *ProductService) UpdateStock(id uint) error {
+	var product models.Product
+	if err := database.GetDB().Select("id", "delivery_type").First(&product, id).Error; err != nil {
+		return err
+	}
+	// 手动/固定内容商品的库存由店主设定，不能被卡密数量覆盖
+	if product.DeliveryType != models.DeliveryTypeCardKey {
+		return nil
+	}
 	var count int64
 	database.GetDB().Model(&models.CardKey{}).
 		Where("product_id = ? AND status = ?", id, models.CardKeyStatusAvailable).

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -168,8 +169,12 @@ func (h *AdminHandler) GetProducts(c *gin.Context) {
 		return
 	}
 
+	out := make([]models.OwnerProduct, len(products))
+	for i, p := range products {
+		out[i] = models.ToOwnerProduct(p)
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"products": products,
+		"products": out,
 		"total":    total,
 		"page":     page,
 		"pageSize": pageSize,
@@ -184,7 +189,7 @@ func (h *AdminHandler) GetProduct(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "商品不存在"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"product": product})
+	c.JSON(http.StatusOK, gin.H{"product": models.ToOwnerProduct(*product)})
 }
 
 // CreateProduct 创建商品
@@ -201,6 +206,7 @@ func (h *AdminHandler) CreateProduct(c *gin.Context) {
 		Sort        int        `json:"sort"`
 		IsActive    bool       `json:"is_active"`
 		DeliveryType int       `json:"delivery_type"`
+		FixedContent string    `json:"fixed_content"`
 		PromoPrice  float64    `json:"promo_price"`
 		PromoStart  *time.Time `json:"promo_start"`
 		PromoEnd    *time.Time `json:"promo_end"`
@@ -233,16 +239,25 @@ func (h *AdminHandler) CreateProduct(c *gin.Context) {
 		Sort:         req.Sort,
 		IsActive:     req.IsActive,
 		DeliveryType: req.DeliveryType,
+		FixedContent: req.FixedContent,
 		PromoPrice:   req.PromoPrice,
 		PromoStart:   req.PromoStart,
 		PromoEnd:     req.PromoEnd,
+	}
+	if !models.ValidDeliveryType(product.DeliveryType) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "发货方式无效"})
+		return
+	}
+	if product.DeliveryType == models.DeliveryTypeFixed && strings.TrimSpace(product.FixedContent) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "固定内容发货需要填写发货内容"})
+		return
 	}
 	if err := h.productService.Create(product); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建商品失败"})
 		return
 	}
 	product.ComputePromo()
-	c.JSON(http.StatusOK, gin.H{"product": product})
+	c.JSON(http.StatusOK, gin.H{"product": models.ToOwnerProduct(*product)})
 }
 
 // UpdateProduct 更新商品
@@ -267,6 +282,7 @@ func (h *AdminHandler) UpdateProduct(c *gin.Context) {
 		Sort         *int       `json:"sort"`
 		IsActive     *bool      `json:"is_active"`
 		DeliveryType *int       `json:"delivery_type"`
+		FixedContent *string    `json:"fixed_content"`
 		PromoPrice   *float64   `json:"promo_price"`
 		PromoStart   *time.Time `json:"promo_start"`
 		PromoEnd     *time.Time `json:"promo_end"`
@@ -288,16 +304,25 @@ func (h *AdminHandler) UpdateProduct(c *gin.Context) {
 	if req.Sort != nil { product.Sort = *req.Sort }
 	if req.IsActive != nil { product.IsActive = *req.IsActive }
 	if req.DeliveryType != nil { product.DeliveryType = *req.DeliveryType }
+	if req.FixedContent != nil { product.FixedContent = *req.FixedContent }
 	if req.PromoPrice != nil { product.PromoPrice = *req.PromoPrice }
 	product.PromoStart = req.PromoStart
 	product.PromoEnd = req.PromoEnd
+	if !models.ValidDeliveryType(product.DeliveryType) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "发货方式无效"})
+		return
+	}
+	if product.DeliveryType == models.DeliveryTypeFixed && strings.TrimSpace(product.FixedContent) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "固定内容发货需要填写发货内容"})
+		return
+	}
 
 	if err := h.productService.Update(product); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新商品失败"})
 		return
 	}
 	product.ComputePromo()
-	c.JSON(http.StatusOK, gin.H{"product": product})
+	c.JSON(http.StatusOK, gin.H{"product": models.ToOwnerProduct(*product)})
 }
 
 // DeleteProduct 删除商品
@@ -345,13 +370,17 @@ func (h *AdminHandler) AddCardKeys(c *gin.Context) {
 		return
 	}
 
-	count, err := h.cardKeyService.BatchCreate(req.ProductID, req.CardsText)
+	res, err := h.cardKeyService.BatchCreate(req.ProductID, req.CardsText)
 	if err != nil {
+		if se, ok := err.(*services.ServiceError); ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": se.Message})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "添加卡密失败"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "添加成功", "count": count})
+	c.JSON(http.StatusOK, gin.H{"message": "添加成功", "count": res.Added, "duplicates": res.Duplicates, "invalid": res.Invalid, "lines": res.Lines})
 }
 
 // DeleteCardKey 删除卡密

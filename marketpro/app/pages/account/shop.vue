@@ -344,7 +344,7 @@
                         </td>
                         <td class="py-12 px-16">
                           <button class="btn btn-sm btn-primary rounded-6 me-6" @click="openProductEdit(p)">编辑</button>
-                          <button class="btn btn-sm btn-warning rounded-6 me-6" @click="openProductStock(p)">库存</button>
+                          <button v-if="(p.delivery_type ?? 0) === 0" class="btn btn-sm btn-warning rounded-6 me-6" @click="openProductStock(p)">库存</button>
                           <button class="btn btn-sm btn-danger rounded-6" @click="deleteProduct(p.id)">删除</button>
                         </td>
                       </tr>
@@ -574,7 +574,7 @@
           <li class="nav-item">
             <button class="nav-link" :class="{ active: pTab === 'info' }" @click="pTab = 'info'">基本信息</button>
           </li>
-          <li v-if="editingProductId" class="nav-item">
+          <li v-if="editingProductId && (pForm.delivery_type === 0 || ckTotal > 0)" class="nav-item">
             <button class="nav-link" :class="{ active: pTab === 'stock' }" @click="pTab = 'stock'">
               库存管理
               <span class="badge bg-main-100 text-main-600 ms-6" style="font-size:11px">{{ ckTotal }}</span>
@@ -598,16 +598,27 @@
             </div>
             <div class="col-12">
               <label class="form-label fw-medium">发货方式 <span class="text-danger-600">*</span></label>
-              <div class="d-flex gap-24 mt-6">
+              <div class="d-flex flex-wrap mt-6" style="column-gap:24px;row-gap:8px">
                 <label class="d-flex align-items-center gap-8" style="cursor:pointer">
                   <input type="radio" v-model.number="pForm.delivery_type" :value="0" class="form-check-input mt-0" />
                   <span>卡密自动发货</span>
+                </label>
+                <label class="d-flex align-items-center gap-8" style="cursor:pointer">
+                  <input type="radio" v-model.number="pForm.delivery_type" :value="2" class="form-check-input mt-0" />
+                  <span>固定内容自动发货（源码 / 教程 / 网盘链接）</span>
                 </label>
                 <label class="d-flex align-items-center gap-8" style="cursor:pointer">
                   <input type="radio" v-model.number="pForm.delivery_type" :value="1" class="form-check-input mt-0" />
                   <span>手动发货（TG 号 / 实物 / 其他）</span>
                 </label>
               </div>
+              <div class="text-sm text-gray-400 mt-6">{{ deliveryHint }}</div>
+            </div>
+            <div v-if="pForm.delivery_type === 2" class="col-12">
+              <label class="form-label fw-medium">发货内容 <span class="text-danger-600">*</span></label>
+              <textarea v-model="pForm.fixed_content" class="form-control font-monospace" rows="8"
+                placeholder="买家付款后在订单页看到的完整内容，例如源码、使用教程、网盘链接和提取码"></textarea>
+              <div class="text-sm text-gray-400 mt-6">每位买家看到的内容相同，付款前不会公开。</div>
             </div>
             <div class="col-sm-6">
               <label class="form-label fw-medium">价格（能量）<span class="text-danger-600">*</span></label>
@@ -617,8 +628,8 @@
               <label class="form-label fw-medium">划线价（能量）</label>
               <input v-model.number="pForm.orig_price" type="number" min="0" step="1" class="form-control" />
             </div>
-            <!-- 手动发货：库存字段 -->
-            <div v-if="pForm.delivery_type === 1" class="col-sm-6">
+            <!-- 手动 / 固定内容发货：库存由店主设定 -->
+            <div v-if="pForm.delivery_type !== 0" class="col-sm-6">
               <label class="form-label fw-medium">库存数量 <span class="text-danger-600">*</span></label>
               <input v-model.number="pForm.stock_count" type="number" min="0" step="1" class="form-control" placeholder="剩余可售数量" />
             </div>
@@ -692,11 +703,12 @@
             <textarea v-model="cardsText" class="form-control font-monospace" rows="5"
               placeholder="每行一条，支持两种格式：&#10;卡号&#10;卡号----密码"></textarea>
             <div class="mt-8 d-flex justify-content-between align-items-center">
-              <span class="text-sm text-gray-400">共 {{ cardsText.split('\n').filter(l => l.trim()).length }} 条</span>
+              <span class="text-sm text-gray-400">共 {{ cardsText.split('\n').filter(l => l.trim()).length }} 条，重复的卡密会自动跳过</span>
               <button class="btn btn-main btn-sm rounded-8 px-20" :disabled="ckAdding" @click="addCardKeys">
                 {{ ckAdding ? "添加中..." : "批量添加" }}
               </button>
             </div>
+            <div v-if="ckMsg" class="mt-8 text-sm" :class="ckMsg.ok ? 'text-success-600' : 'text-danger-600'">{{ ckMsg.text }}</div>
           </div>
           <!-- 已有卡密 -->
           <div class="border-top pt-16">
@@ -707,7 +719,7 @@
             <div v-if="cardKeys.length === 0" class="text-center text-gray-400 py-16 text-sm">暂无卡密，请在上方批量添加</div>
             <div v-else class="overflow-auto" style="max-height:320px">
               <table class="table table-sm mb-0">
-                <thead class="table-light">
+                <thead>
                   <tr>
                     <th>卡号</th>
                     <th>密码</th>
@@ -879,7 +891,7 @@ const editingProductId = ref<number | null>(null);
 const pSaving = ref(false);
 const imageList = ref<string[]>([]);
 const defaultPForm = () => ({
-  name: "", category_id: "" as any, delivery_type: 0, stock_count: 0,
+  name: "", category_id: "" as any, delivery_type: 0, stock_count: 0, fixed_content: "",
   price: 0, orig_price: 0, promo_price: 0, promo_start: "", promo_end: "",
   description: "", image: "", is_active: true,
 });
@@ -896,6 +908,12 @@ const cardKeys = ref<any[]>([]);
 const ckTotal = ref(0);
 const cardsText = ref("");
 const ckAdding = ref(false);
+const ckMsg = ref<{ ok: boolean; text: string } | null>(null);
+const deliveryHint = computed(() => ({
+  0: "每卖出一份发一条卡密，库存 = 未售出的卡密数。",
+  1: "买家付款后，你在订单里手动填写发货内容。",
+  2: "整段内容一次填好，每位买家付款后自动收到同一份。",
+} as Record<number, string>)[pForm.value.delivery_type] || "");
 
 // 订单
 const orders = ref<any[]>([]);
@@ -1074,6 +1092,7 @@ async function openProductEdit(p: any) {
     category_id: p.category_id,
     delivery_type: p.delivery_type ?? 0,
     stock_count: p.stock_count ?? 0,
+    fixed_content: p.fixed_content || "",
     price: p.price,
     orig_price: p.orig_price || 0,
     promo_price: p.promo_price || 0,
@@ -1092,6 +1111,7 @@ async function openProductEdit(p: any) {
     imageList.value.unshift(pForm.value.image);
   }
   cardsText.value = "";
+  ckMsg.value = null;
   pTab.value = "info";
   productDialog.value = true;
   await fetchCardKeys();
@@ -1099,7 +1119,7 @@ async function openProductEdit(p: any) {
 
 async function openProductStock(p: any) {
   await openProductEdit(p);
-  pTab.value = "stock";
+  if ((p.delivery_type ?? 0) === 0) pTab.value = "stock";
 }
 
 function removeImage(idx: number) {
@@ -1127,6 +1147,10 @@ async function uploadProductImages(e: Event) {
 async function saveProduct() {
   if (!pForm.value.name || !pForm.value.category_id) {
     alert("请填写商品名称和分类");
+    return;
+  }
+  if (pForm.value.delivery_type === 2 && !pForm.value.fixed_content.trim()) {
+    alert("固定内容发货需要填写发货内容");
     return;
   }
   pSaving.value = true;
@@ -1173,22 +1197,31 @@ async function fetchCardKeys() {
 async function addCardKeys() {
   if (!cardsText.value.trim() || !editingProductId.value) return;
   ckAdding.value = true;
+  ckMsg.value = null;
   try {
-    await $fetch(`/api/shop/me/products/${editingProductId.value}/cardkeys`, {
+    const res = await $fetch<any>(`/api/shop/me/products/${editingProductId.value}/cardkeys`, {
       method: "POST",
       credentials: "include",
       body: { cards_text: cardsText.value },
     });
+    ckMsg.value = { ok: true, text: importSummary(res) };
     cardsText.value = "";
     await fetchCardKeys();
     // 同步更新列表中的库存数
     const idx = products.value.findIndex(p => p.id === editingProductId.value);
     if (idx !== -1) products.value[idx].stock_count = ckTotal.value;
   } catch (e: any) {
-    alert(e?.data?.error || "添加失败");
+    ckMsg.value = { ok: false, text: e?.data?.error || "添加失败" };
   } finally {
     ckAdding.value = false;
   }
+}
+
+function importSummary(res: { count?: number; duplicates?: number; invalid?: number }) {
+  const parts = [`新增 ${res.count ?? 0} 条`];
+  if (res.duplicates) parts.push(`跳过重复 ${res.duplicates} 条`);
+  if (res.invalid) parts.push(`无效 ${res.invalid} 条（空卡号或超过 500 字）`);
+  return parts.join("，");
 }
 
 async function deleteCardKey(id: number) {
@@ -1371,7 +1404,9 @@ function filterReviews(rating: number) {
   padding: 16px;
 }
 .modal-box-custom {
-  background: #fff;
+  background: var(--surface, #fff);
+  color: var(--ink);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 28px;
   width: 100%;
