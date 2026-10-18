@@ -1,10 +1,9 @@
 <template>
   <div class="nl-chips-wrap">
     <button
-      v-if="overflow"
+      v-if="canLeft"
       type="button"
-      class="nl-chips__arrow"
-      :disabled="!canLeft"
+      class="nl-chips__arrow nl-chips__arrow--prev"
       aria-label="向左滚动"
       @click="scrollBy(-1)"
     >
@@ -46,10 +45,9 @@
       </template>
     </div>
     <button
-      v-if="overflow"
+      v-if="canRight"
       type="button"
-      class="nl-chips__arrow"
-      :disabled="!canRight"
+      class="nl-chips__arrow nl-chips__arrow--next"
       aria-label="向右滚动"
       @click="scrollBy(1)"
     >
@@ -73,7 +71,6 @@ const props = defineProps<{ items: NlChipItem[]; active?: string }>();
 defineEmits<{ select: [key: string] }>();
 
 const scroller = ref<HTMLElement | null>(null);
-const overflow = ref(false);
 const canLeft = ref(false);
 const canRight = ref(false);
 let ro: ResizeObserver | null = null;
@@ -81,7 +78,6 @@ let ro: ResizeObserver | null = null;
 function update() {
   const el = scroller.value;
   if (!el) return;
-  overflow.value = el.scrollWidth > el.clientWidth + 2;
   canLeft.value = el.scrollLeft > 2;
   canRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
 }
