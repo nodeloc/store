@@ -4,8 +4,8 @@
 
 @use "./functions" as *;
 
-// google fonts
-@import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400..700&family=Exo:ital,wght@0,100..900;1,100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Outfit:wght@100..900&family=Quicksand:wght@300..700&display=swap");
+// google fonts removed: the render-blocking remote @import hangs on networks where
+// fonts.googleapis.com is unreachable, stalling the whole app. System font fallbacks apply.
 
 $colors: (
   "main": (

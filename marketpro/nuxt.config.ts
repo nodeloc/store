@@ -61,8 +61,13 @@ export default defineNuxtConfig({
         { rel: "preconnect", href: "https://fonts.googleapis.com" },
         { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "" },
         {
+          // Loaded non-blocking: a pending render-blocking stylesheet delays module
+          // script execution, and fonts.googleapis.com hangs on some networks,
+          // leaving a permanently blank page. Falls back to system fonts meanwhile.
           rel: "stylesheet",
           href: "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap",
+          media: "print",
+          onload: "this.media='all'",
         },
         {
           rel: "icon",

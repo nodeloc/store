@@ -1,0 +1,37 @@
+<!-- Shown while the SPA bundle downloads/executes. Replaced once the app mounts. -->
+<style>
+  .nl-boot {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: #08090b;
+    color: #f2f4f6;
+    font-family: system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  html[data-theme="light"] .nl-boot { background: #f4f3ee; color: #14161a; }
+  .nl-boot__mark {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: #cdfc3a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: nl-boot-pulse 1.2s ease-in-out infinite;
+  }
+  .nl-boot__mark svg { width: 26px; height: 26px; }
+  .nl-boot__text { font-size: 12px; letter-spacing: 0.22em; opacity: 0.55; }
+  @keyframes nl-boot-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(0.9); opacity: 0.72; }
+  }
+</style>
+<div class="nl-boot">
+  <div class="nl-boot__mark">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12L13 2Z" fill="#0b0d10"/></svg>
+  </div>
+  <div class="nl-boot__text">NODELOC STORE</div>
+</div>
