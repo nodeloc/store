@@ -10,7 +10,7 @@
     >
       <i class="ph ph-caret-left"></i>
     </button>
-    <div ref="scroller" class="nl-chips" role="list" @scroll.passive="update">
+    <div ref="scroller" class="nl-chips" :class="{ 'nl-chips--fade-l': canLeft, 'nl-chips--fade-r': canRight }" role="list" @scroll.passive="update">
       <template v-for="c in items" :key="c.key">
         <NuxtLink
           v-if="c.to"

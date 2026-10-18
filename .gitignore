@@ -14,8 +14,8 @@
 # Go workspace file
 go.work
 
-# Dependency directories
-vendor/
+# Dependency directories (Go vendor at repo root only; marketpro has vendor pages/components)
+/vendor/
 
 # Environment variables
 .env
