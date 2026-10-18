@@ -61,7 +61,7 @@ func (s *ShopService) GetByUser(userID uint) (*models.Shop, error) {
 // FindByID 根据ID查询
 func (s *ShopService) FindByID(id uint) (*models.Shop, error) {
 	var shop models.Shop
-	if err := database.GetDB().Preload("User").First(&shop, id).Error; err != nil {
+	if err := database.GetDB().Preload("User", PublicUserColumns).First(&shop, id).Error; err != nil {
 		return nil, err
 	}
 	return &shop, nil

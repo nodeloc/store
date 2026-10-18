@@ -1,175 +1,29 @@
 package handler
 
 import (
-	"fmt"
+	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/nodeloc-faka/database"
 	"github.com/nodeloc-faka/models"
 	"github.com/nodeloc-faka/services"
-	"gorm.io/gorm"
 )
 
 // PaymentHandler 支付处理器
 type PaymentHandler struct {
-	paymentService  *services.PaymentService
-	orderService    *services.OrderService
-	productService  *services.ProductService
-	settingService  *services.SettingService
+	paymentService *services.PaymentService
+	orderService   *services.OrderService
 }
 
 // NewPaymentHandler 创建支付处理器
 func NewPaymentHandler() *PaymentHandler {
 	return &PaymentHandler{
-		paymentService:  services.NewPaymentService(),
-		orderService:    services.NewOrderService(),
-		productService:  services.NewProductService(),
-		settingService:  services.NewSettingService(),
+		paymentService: services.NewPaymentService(),
+		orderService:   services.NewOrderService(),
 	}
-}
-
-// CreateOrder 创建订单并发起支付
-func (h *PaymentHandler) CreateOrder(c *gin.Context) {
-	// 检查用户是否登录
-	userInterface, exists := c.Get("user")
-	if !exists || userInterface == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "请先登录"})
-		return
-	}
-	user := userInterface.(*models.User)
-
-	// 检查用户是否被封禁
-	if user.IsBlocked {
-		c.JSON(http.StatusForbidden, gin.H{"error": "您的账号已被封禁"})
-		return
-	}
-
-	// 获取请求参数
-	productID, _ := strconv.ParseUint(c.PostForm("product_id"), 10, 64)
-	quantity, _ := strconv.Atoi(c.PostForm("quantity"))
-	contact := c.PostForm("contact")
-	remark := c.PostForm("remark")
-
-	if quantity <= 0 {
-		quantity = 1
-	}
-
-	// 获取商品
-	product, err := h.productService.FindByID(uint(productID))
-	if err != nil || !product.IsActive {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "商品不存在或已下架"})
-		return
-	}
-
-	// 检查库存
-	if product.StockCount < quantity {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "库存不足"})
-		return
-	}
-
-	// 计算金额
-	totalAmount := product.Price * float64(quantity)
-
-	// 创建订单
-	order := &models.Order{
-		UserID:      user.ID,
-		ProductID:   uint(productID),
-		Quantity:    quantity,
-		TotalAmount: totalAmount,
-		Status:      models.OrderStatusPending,
-		Contact:     contact,
-		Remark:      remark,
-	}
-
-	// 设置过期时间（30分钟）
-	expiredAt := time.Now().Add(30 * time.Minute)
-	order.ExpiredAt = &expiredAt
-
-	if err := h.orderService.Create(order); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建订单失败"})
-		return
-	}
-
-	// 检查是否配置了支付
-	if !h.paymentService.IsConfigured() {
-		// 未配置支付，直接完成订单（免费模式）
-		h.completeOrderFree(order)
-		c.JSON(http.StatusOK, gin.H{
-			"success":  true,
-			"order_no": order.OrderNo,
-			"message":  "订单创建成功",
-			"redirect": "/order/" + order.OrderNo,
-		})
-		return
-	}
-
-	// 发起支付请求
-	payResp, err := h.paymentService.CreatePayment(&services.CreatePaymentRequest{
-		Amount:      int(totalAmount), // 假设1能量=1元
-		Description: fmt.Sprintf("购买 %s x%d", product.Name, quantity),
-		OrderID:     order.OrderNo,
-	})
-
-	if err != nil {
-		// 支付请求失败，记录错误但不影响订单
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":    "发起支付失败: " + err.Error(),
-			"order_no": order.OrderNo,
-		})
-		return
-	}
-
-	// 保存支付信息
-	order.TransactionID = payResp.TransactionID
-	order.PaymentURL = payResp.PaymentURL
-	database.GetDB().Save(order)
-
-	c.JSON(http.StatusOK, gin.H{
-		"success":      true,
-		"order_no":     order.OrderNo,
-		"payment_url":  payResp.PaymentURL,
-		"redirect":     payResp.PaymentURL,
-	})
-}
-
-// completeOrderFree 免费模式完成订单
-func (h *PaymentHandler) completeOrderFree(order *models.Order) {
-	cardKeyService := services.NewCardKeyService()
-	
-	// 分配卡密
-	availableCards, _ := cardKeyService.GetAvailableByProduct(order.ProductID, order.Quantity)
-	if len(availableCards) >= order.Quantity {
-		cardIDs := make([]uint, order.Quantity)
-		for i := 0; i < order.Quantity; i++ {
-			cardIDs[i] = availableCards[i].ID
-		}
-		cardKeyService.MarkAsSold(cardIDs, order.ID)
-	}
-
-	// 更新订单状态
-	now := time.Now()
-	order.Status = models.OrderStatusCompleted
-	order.PayMethod = "free"
-	order.PaidAt = &now
-	product, _ := h.productService.FindByID(order.ProductID)
-	isFixed := product != nil && product.DeliveryType == models.DeliveryTypeFixed
-	if isFixed {
-		order.DeliverContent = product.FixedContent
-	}
-	database.GetDB().Save(order)
-
-	// 更新商品库存和销量
-	if isFixed {
-		database.GetDB().Model(&models.Product{}).Where("id = ?", order.ProductID).
-			UpdateColumn("stock_count", gorm.Expr("GREATEST(stock_count - ?, 0)", order.Quantity))
-	} else {
-		h.productService.UpdateStock(order.ProductID)
-	}
-	h.productService.IncrementSales(order.ProductID, order.Quantity)
 }
 
 // PaymentCallback 支付回调
@@ -203,98 +57,77 @@ func (h *PaymentHandler) PaymentCallback(c *gin.Context) {
 		}
 		frontendBase = scheme + "://" + c.Request.Host
 	}
+	orderURL := frontendBase + "/order/" + url.PathEscape(callback.ExternalReference)
 
 	// 处理回调
-	err := h.paymentService.ProcessPaymentCallback(callback)
-	if err != nil {
-		fmt.Printf("支付回调处理失败: %v\n", err)
-		c.Redirect(http.StatusFound, frontendBase+"/order/"+callback.ExternalReference+"?error=payment_failed")
+	if err := h.paymentService.ProcessPaymentCallback(callback); err != nil {
+		log.Printf("支付回调处理失败 tx=%s order=%s: %v", callback.TransactionID, callback.ExternalReference, err)
+		c.Redirect(http.StatusFound, orderURL+"?error=payment_failed")
 		return
 	}
 
 	// 重定向到订单详情页（使用完整 URL 避免代理跟随问题）
-	c.Redirect(http.StatusFound, frontendBase+"/order/"+callback.ExternalReference+"?success=1")
+	c.Redirect(http.StatusFound, orderURL+"?success=1")
 }
 
-// QueryOrder 查询订单支付状态
+// QueryOrder 主动向 NodeLoc 查询待支付订单的支付状态（浏览器回调丢失时的补偿）
 func (h *PaymentHandler) QueryOrder(c *gin.Context) {
-	orderNo := c.Param("order_no")
+	user := GetCurrentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "请先登录"})
+		return
+	}
 
+	orderNo := c.Param("order_no")
 	order, err := h.orderService.FindByOrderNo(orderNo)
-	if err != nil {
+	if err != nil || order.UserID != user.ID {
 		c.JSON(http.StatusNotFound, gin.H{"error": "订单不存在"})
 		return
 	}
 
-	// 如果订单已完成或已取消，直接返回状态
-	if order.Status != models.OrderStatusPending {
-		c.JSON(http.StatusOK, gin.H{
-			"order_no": order.OrderNo,
-			"status":   order.Status,
-			"paid":     order.Status == models.OrderStatusCompleted || order.Status == models.OrderStatusPaid,
-		})
-		return
-	}
-
-	// 如果有交易ID，查询支付状态
-	if order.TransactionID != "" {
+	if order.Status == models.OrderStatusPending && order.TransactionID != "" {
 		queryResp, err := h.paymentService.QueryPayment(order.TransactionID)
 		if err == nil && queryResp.Status == "completed" {
-			// 支付已完成，通过 orderService 处理（含签名验证已在 paymentService 层做过）
-			// QueryPayment 是我们主动查询的，NodeLoc 不提供签名，直接信任查询结果
-			_, processErr := h.orderService.ProcessPaymentCallback(
+			// 主动查询是服务端直连 NodeLoc，结果可信，无需签名
+			if _, processErr := h.orderService.ProcessPaymentCallback(
 				queryResp.TransactionID,
 				queryResp.Amount,
 				queryResp.PlatformFee,
 				queryResp.MerchantPoints,
-			)
-			if processErr != nil {
-				fmt.Printf("QueryOrder 处理订单失败: %v\n", processErr)
+			); processErr != nil {
+				log.Printf("QueryOrder 处理订单 %s 失败: %v", orderNo, processErr)
 			}
-			// 重新查询订单（无论处理是否成功，返回最新状态）
-			order, _ = h.orderService.FindByOrderNo(orderNo)
+			if refreshed, err := h.orderService.FindByOrderNo(orderNo); err == nil {
+				order = refreshed
+			}
 		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"order_no": order.OrderNo,
 		"status":   order.Status,
-		"paid":     order.Status == models.OrderStatusCompleted || order.Status == models.OrderStatusPaid,
+		"paid":     order.Status != models.OrderStatusPending && order.Status != models.OrderStatusCancelled,
 	})
 }
 
 // CancelOrder 取消订单
 func (h *PaymentHandler) CancelOrder(c *gin.Context) {
-	orderNo := c.Param("order_no")
-
-	// 检查用户
-	userInterface, exists := c.Get("user")
-	if !exists || userInterface == nil {
+	user := GetCurrentUser(c)
+	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "请先登录"})
 		return
 	}
-	user := userInterface.(*models.User)
 
-	order, err := h.orderService.FindByOrderNo(orderNo)
-	if err != nil {
+	order, err := h.orderService.FindByOrderNo(c.Param("order_no"))
+	if err != nil || order.UserID != user.ID {
 		c.JSON(http.StatusNotFound, gin.H{"error": "订单不存在"})
 		return
 	}
 
-	// 检查是否是自己的订单
-	if order.UserID != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "无权操作此订单"})
-		return
-	}
-
-	// 只能取消待支付的订单
-	if order.Status != models.OrderStatusPending {
+	if err := h.orderService.CancelPending(order.ID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "订单状态不允许取消"})
 		return
 	}
-
-	// 取消订单
-	h.orderService.Cancel(order.ID)
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }

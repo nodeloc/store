@@ -10,6 +10,7 @@ import (
 	"github.com/nodeloc-faka/models"
 	"github.com/nodeloc-faka/payment"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // getAppConfig 辅助：从环境变量读取 payment 配置（fallback）
@@ -130,91 +131,83 @@ func (s *WithdrawalService) Apply(userID, shopID uint, amount float64, remark st
 
 // Approve 管理员批准提现（先调用 NodeLoc Payment 转账，成功后更新状态）
 func (s *WithdrawalService) Approve(id uint, transferTxID string) error {
-	var req models.WithdrawalRequest
-	if err := database.GetDB().Preload("User").First(&req, id).Error; err != nil {
-		return err
-	}
-	if req.Status != models.WithdrawalStatusPending {
-		return ErrWithdrawalNotPending
-	}
+	// 整个审核放在一个事务里并对提现单加行锁，直到转账结果落库才释放：
+	// 双击、自动审核与人工审核同时触发时，只有一个请求会真正调用转账接口。
+	return database.GetDB().Transaction(func(tx *gorm.DB) error {
+		var req models.WithdrawalRequest
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&req, id).Error; err != nil {
+			return err
+		}
+		if req.Status != models.WithdrawalStatusPending {
+			return ErrWithdrawalNotPending
+		}
 
-	// 校验接收方信息
-	if req.User == nil || req.User.ID == 0 {
-		return &ServiceError{Message: "找不到提现用户信息"}
-	}
-	if req.User.NodeLocID == 0 {
-		return &ServiceError{Message: "用户未绑定 NodeLoc 账号，无法自动转账"}
-	}
+		// 校验接收方信息（普通读，不锁用户行，避免转账期间阻塞该用户的余额操作）
+		var user models.User
+		if err := tx.First(&user, req.UserID).Error; err != nil {
+			return &ServiceError{Message: "找不到提现用户信息"}
+		}
+		if user.NodeLocID == 0 {
+			return &ServiceError{Message: "用户未绑定 NodeLoc 账号，无法自动转账"}
+		}
 
-	// 读取支付配置
-	paymentID := s.settingService.Get(SettingPaymentID)
-	paymentSecret := s.settingService.Get(SettingPaymentSecret)
-	nodeLoc_URL := s.settingService.Get(SettingNodeLocURL)
+		// 读取支付配置
+		paymentID := s.settingService.Get(SettingPaymentID)
+		paymentSecret := s.settingService.Get(SettingPaymentSecret)
+		nodeLocURL := s.settingService.Get(SettingNodeLocURL)
 
-	// fallback 到环境变量
-	if paymentID == "" || paymentSecret == "" {
-		cfg := getAppConfig()
-		if cfg != nil {
+		// fallback 到环境变量
+		if paymentID == "" || paymentSecret == "" {
+			cfg := getAppConfig()
 			if paymentID == "" {
 				paymentID = cfg.PaymentID
 			}
 			if paymentSecret == "" {
 				paymentSecret = cfg.PaymentSecret
 			}
-			if nodeLoc_URL == "" {
-				nodeLoc_URL = cfg.NodeLocURL
+			if nodeLocURL == "" {
+				nodeLocURL = cfg.NodeLocURL
 			}
 		}
-	}
-	if nodeLoc_URL == "" {
-		nodeLoc_URL = "https://www.nodeloc.com"
-	}
-
-	// 自动转账（配置了支付才执行）
-	if paymentID != "" && paymentSecret != "" && transferTxID == "" {
-		client := payment.NewClient(nodeLoc_URL, paymentID, paymentSecret)
-		orderID := fmt.Sprintf("withdrawal_%d", req.ID)
-		amount := int(req.ActualAmount)
-		if amount <= 0 {
-			amount = int(req.Amount)
+		if nodeLocURL == "" {
+			nodeLocURL = "https://www.nodeloc.com"
 		}
-		tr, err := client.Transfer(&payment.TransferRequest{
-			ToUserID:   req.User.NodeLocID,
-			ToUsername: req.User.Username,
-			Amount:     amount,
-			OrderID:    orderID,
-		})
-		if err != nil {
-			return fmt.Errorf("NodeLoc 转账失败: %v", err)
-		}
-		transferTxID = tr.TransactionID
-	}
 
-	// 转账成功（或手动填写了 tx_id）→ 更新提现单状态
-	// 使用乐观锁：只更新 pending 状态的记录，防止重复处理
-	now := time.Now()
-	result := database.GetDB().Model(&models.WithdrawalRequest{}).
-		Where("id = ? AND status = ?", id, models.WithdrawalStatusPending).
-		Updates(map[string]interface{}{
-			"status":         models.WithdrawalStatusCompleted,
-			"transfer_tx_id": transferTxID,
-			"reviewed_at":    &now,
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		// 已被其他请求处理（幂等）
-		return ErrWithdrawalNotPending
-	}
-	return nil
+		// 自动转账（配置了支付才执行）
+		if paymentID != "" && paymentSecret != "" && transferTxID == "" {
+			client := payment.NewClient(nodeLocURL, paymentID, paymentSecret)
+			amount := int(req.ActualAmount)
+			if amount <= 0 {
+				amount = int(req.Amount)
+			}
+			tr, err := client.Transfer(&payment.TransferRequest{
+				ToUserID:   user.NodeLocID,
+				ToUsername: user.Username,
+				Amount:     amount,
+				OrderID:    fmt.Sprintf("withdrawal_%d", req.ID),
+			})
+			if err != nil {
+				return fmt.Errorf("NodeLoc 转账失败: %v", err)
+			}
+			transferTxID = tr.TransactionID
+		}
+
+		now := time.Now()
+		return tx.Model(&models.WithdrawalRequest{}).
+			Where("id = ? AND status = ?", id, models.WithdrawalStatusPending).
+			Updates(map[string]interface{}{
+				"status":         models.WithdrawalStatusCompleted,
+				"transfer_tx_id": transferTxID,
+				"reviewed_at":    &now,
+			}).Error
+	})
 }
 
 // Reject 管理员拒绝提现 → 把扣的余额退回去
 func (s *WithdrawalService) Reject(id uint, reason string) error {
 	return database.GetDB().Transaction(func(tx *gorm.DB) error {
 		var req models.WithdrawalRequest
-		if err := tx.First(&req, id).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&req, id).Error; err != nil {
 			return err
 		}
 		if req.Status != models.WithdrawalStatusPending {

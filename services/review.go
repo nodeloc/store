@@ -31,7 +31,7 @@ func (s *ReviewService) GetByProduct(productID uint) (ReviewResponse, error) {
 	db := database.GetDB()
 
 	var reviews []models.ProductReview
-	if err := db.Preload("User").
+	if err := db.Preload("User", PublicUserColumns).
 		Where("product_id = ?", productID).
 		Order("created_at DESC").
 		Find(&reviews).Error; err != nil {
@@ -191,7 +191,7 @@ func (s *ReviewService) GetByShop(shopID uint, page, pageSize, ratingFilter int)
 
 	var reviews []models.ProductReview
 	offset := (page - 1) * pageSize
-	if err := query.Preload("User").Preload("Product").
+	if err := query.Preload("User", PublicUserColumns).Preload("Product").
 		Order("created_at DESC").
 		Offset(offset).Limit(pageSize).
 		Find(&reviews).Error; err != nil {

@@ -162,9 +162,9 @@ func (s *EmailService) SendOrderCompleted(order *models.Order) {
 	var cardLines strings.Builder
 	for _, ck := range order.CardKeys {
 		if ck.CardPwd != "" {
-			cardLines.WriteString(fmt.Sprintf("<li>卡号：<b>%s</b> &nbsp; 密码：<b>%s</b></li>", ck.CardNo, ck.CardPwd))
+			cardLines.WriteString(fmt.Sprintf("<li>卡号：<b>%s</b> &nbsp; 密码：<b>%s</b></li>", html.EscapeString(ck.CardNo), html.EscapeString(ck.CardPwd)))
 		} else {
-			cardLines.WriteString(fmt.Sprintf("<li>卡号：<b>%s</b></li>", ck.CardNo))
+			cardLines.WriteString(fmt.Sprintf("<li>卡号：<b>%s</b></li>", html.EscapeString(ck.CardNo)))
 		}
 	}
 
@@ -193,7 +193,7 @@ func (s *EmailService) SendOrderCompleted(order *models.Order) {
   <h3>%s</h3>
   %s
   <p style="color:#888;font-size:12px">请妥善保管，如有问题请联系店铺客服。</p>
-</div>`, intro, order.OrderNo, productName, order.Quantity, order.TotalAmount, heading, deliverBlock)
+</div>`, intro, html.EscapeString(order.OrderNo), html.EscapeString(productName), order.Quantity, order.TotalAmount, heading, deliverBlock)
 
 	s.sendAsync([]string{order.User.Email}, "订单完成 - 商品已发放", body)
 }
@@ -222,10 +222,10 @@ func (s *EmailService) SendOrderShipped(order *models.Order) {
   %s
   <p style="margin-top:16px">收到商品后请在订单页面确认收货，确认后款项将结算给卖家。</p>
 </div>`,
-		order.OrderNo, productName, order.DeliverContent,
+		html.EscapeString(order.OrderNo), html.EscapeString(productName), html.EscapeString(order.DeliverContent),
 		func() string {
 			if order.DeliverNote != "" {
-				return fmt.Sprintf(`<p><b>备注：</b>%s</p>`, order.DeliverNote)
+				return fmt.Sprintf(`<p><b>备注：</b>%s</p>`, html.EscapeString(order.DeliverNote))
 			}
 			return ""
 		}())
@@ -261,7 +261,8 @@ func (s *EmailService) SendNewOrderToShop(order *models.Order, shopOwnerEmail st
     <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">联系方式</td><td style="padding:8px">%s</td></tr>
   </table>
   <p>请登录后台处理订单。</p>
-</div>`, order.OrderNo, productName, order.Quantity, order.TotalAmount, buyerName, order.Contact)
+</div>`, html.EscapeString(order.OrderNo), html.EscapeString(productName), order.Quantity, order.TotalAmount,
+		html.EscapeString(buyerName), html.EscapeString(order.Contact))
 
 	s.sendAsync([]string{shopOwnerEmail}, "新订单通知 - "+productName, body)
 }
@@ -277,7 +278,7 @@ func (s *EmailService) SendNewsletterConfirm(email, siteName string) {
   <p>感谢您订阅 <b>%s</b> 的最新资讯！</p>
   <p>我们将不定期向您发送最新商品、优惠活动等信息。</p>
   <p style="color:#888;font-size:12px">如果您没有订阅过我们的邮件，请忽略此邮件。</p>
-</div>`, siteName)
+</div>`, html.EscapeString(siteName))
 
 	s.sendAsync([]string{email}, "订阅成功 - "+siteName, body)
 }
@@ -304,7 +305,7 @@ func (s *EmailService) SendWithdrawalNotify(req *models.WithdrawalRequest) {
     <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">备注</td><td style="padding:8px">%s</td></tr>
   </table>
   <p>请登录后台审核。</p>
-</div>`, username, req.Amount, req.ActualAmount, req.Remark)
+</div>`, html.EscapeString(username), req.Amount, req.ActualAmount, html.EscapeString(req.Remark))
 
 	s.sendAsync([]string{s.admin}, "提现申请待审核", body)
 }

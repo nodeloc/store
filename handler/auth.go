@@ -5,8 +5,11 @@ import (
 	"encoding/base64"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nodeloc-faka/middleware"
 	"github.com/nodeloc-faka/models"
 	"github.com/nodeloc-faka/oauth"
 	"github.com/nodeloc-faka/services"
@@ -37,11 +40,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 保存重定向地址
-	redirect := c.Query("redirect")
-	if redirect == "" {
-		redirect = "/"
-	}
+	redirect := safeRedirect(c.Query("redirect"))
 
 	// 将 state 和 redirect 保存到 session
 	session := c.MustGet("session").(map[string]interface{})
@@ -63,7 +62,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	// 检查是否有错误
 	if errorCode != "" {
 		// OAuth 授权失败，重定向到登录页并显示错误
-		c.Redirect(http.StatusTemporaryRedirect, "/?error="+errorCode)
+		c.Redirect(http.StatusTemporaryRedirect, "/?error="+url.QueryEscape(errorCode))
 		return
 	}
 
@@ -114,14 +113,14 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	// 保存用户信息到 session
+	// 登录成功后换发新的 session ID，登录前可能被他人植入的旧 ID 随之失效
+	middleware.RegenerateSession(c)
 	session["user_id"] = user.ID
 	session["token"] = token
 
-	// 获取重定向地址
 	redirect := "/"
 	if savedRedirect, ok := session["oauth_redirect"].(string); ok {
-		redirect = savedRedirect
+		redirect = safeRedirect(savedRedirect)
 		delete(session, "oauth_redirect")
 	}
 
@@ -131,11 +130,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 
 // Logout 退出登录
 func (h *AuthHandler) Logout(c *gin.Context) {
-	// 清除 session
-	session := c.MustGet("session").(map[string]interface{})
-	delete(session, "user_id")
-	delete(session, "token")
-
+	middleware.DestroySession(c)
 	c.Redirect(http.StatusTemporaryRedirect, "/")
 }
 
@@ -146,6 +141,15 @@ func GetCurrentUser(c *gin.Context) *models.User {
 		return nil
 	}
 	return userInterface.(*models.User)
+}
+
+// safeRedirect 只允许站内相对路径，防止登录后被带到外部钓鱼站点
+func safeRedirect(target string) string {
+	// 反斜杠会被浏览器当成 /，"/\evil.com" 等同于 "//evil.com"
+	if !strings.HasPrefix(target, "/") || strings.HasPrefix(target, "//") || strings.ContainsAny(target, "\r\n\\") {
+		return "/"
+	}
+	return target
 }
 
 // generateState 生成随机 state 字符串

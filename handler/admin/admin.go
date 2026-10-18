@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -244,12 +243,12 @@ func (h *AdminHandler) CreateProduct(c *gin.Context) {
 		PromoStart:   req.PromoStart,
 		PromoEnd:     req.PromoEnd,
 	}
-	if !models.ValidDeliveryType(product.DeliveryType) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "发货方式无效"})
+	if err := h.productService.Validate(product); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if product.DeliveryType == models.DeliveryTypeFixed && strings.TrimSpace(product.FixedContent) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "固定内容发货需要填写发货内容"})
+	if !h.productService.CategoryExists(product.CategoryID) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "商品分类不存在"})
 		return
 	}
 	if err := h.productService.Create(product); err != nil {
@@ -308,12 +307,8 @@ func (h *AdminHandler) UpdateProduct(c *gin.Context) {
 	if req.PromoPrice != nil { product.PromoPrice = *req.PromoPrice }
 	product.PromoStart = req.PromoStart
 	product.PromoEnd = req.PromoEnd
-	if !models.ValidDeliveryType(product.DeliveryType) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "发货方式无效"})
-		return
-	}
-	if product.DeliveryType == models.DeliveryTypeFixed && strings.TrimSpace(product.FixedContent) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "固定内容发货需要填写发货内容"})
+	if err := h.productService.Validate(product); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

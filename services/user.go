@@ -5,7 +5,14 @@ import (
 
 	"github.com/nodeloc-faka/database"
 	"github.com/nodeloc-faka/models"
+	"gorm.io/gorm"
 )
+
+// PublicUserColumns 作为 Preload("User", PublicUserColumns) 的条件，只加载可以给其他用户看的字段。
+// 店铺详情、商品评价、店主订单列表都会带出关联用户，完整加载会把邮箱、余额等泄露出去。
+func PublicUserColumns(db *gorm.DB) *gorm.DB {
+	return db.Select("id", "username", "name", "avatar_url", "trust_level")
+}
 
 // UserService 用户服务
 type UserService struct{}

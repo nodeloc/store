@@ -94,12 +94,12 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="售价" required>
-              <el-input-number v-model="form.price" :min="0" :precision="2" style="width:100%" controls-position="right" />
+              <el-input-number v-model="form.price" :min="1" :precision="0" :step="1" style="width:100%" controls-position="right" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="原价">
-              <el-input-number v-model="form.orig_price" :min="0" :precision="2" style="width:100%" controls-position="right" />
+              <el-input-number v-model="form.orig_price" :min="0" :precision="0" :step="1" style="width:100%" controls-position="right" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -127,7 +127,7 @@
         <el-row :gutter="16">
           <el-col :span="8">
             <el-form-item label="促销价">
-              <el-input-number v-model="form.promo_price" :min="0" :precision="2" style="width:100%" controls-position="right" placeholder="0=不启用" />
+              <el-input-number v-model="form.promo_price" :min="0" :precision="0" :step="1" style="width:100%" controls-position="right" placeholder="0=不启用" />
             </el-form-item>
           </el-col>
           <el-col :span="8">

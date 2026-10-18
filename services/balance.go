@@ -6,6 +6,7 @@ import (
 	"github.com/nodeloc-faka/database"
 	"github.com/nodeloc-faka/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // BalanceService 余额服务（事务性）
@@ -27,9 +28,9 @@ func (s *BalanceService) AddBalance(tx *gorm.DB, userID uint, amount float64, tx
 		return nil // 平台官方店等无用户的店铺，不做余额累计
 	}
 
-	// 锁定用户行（使用标准 GORM clause）
+	// SELECT ... FOR UPDATE 锁住用户行，并发扣款/入账按顺序执行，余额不会被重复花掉
 	var user models.User
-	if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, userID).Error; err != nil {
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, userID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil // 用户不存在（如店主账号未注册），跳过结算
 		}

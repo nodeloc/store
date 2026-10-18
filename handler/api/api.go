@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -68,7 +69,13 @@ func (h *APIHandler) GetCategory(c *gin.Context) {
 // GetProducts 获取商品列表（支持分类、关键词、价格区间、排序、分页）
 func (h *APIHandler) GetProducts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if page < 1 {
+		page = 1
+	}
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
 	minPrice, _ := strconv.ParseFloat(c.Query("min_price"), 64)
 	maxPrice, _ := strconv.ParseFloat(c.Query("max_price"), 64)
 
@@ -129,7 +136,7 @@ func (h *APIHandler) GetProducts(c *gin.Context) {
 func (h *APIHandler) GetProduct(c *gin.Context) {
 	id := c.Param("id")
 	product, err := h.productService.FindByID(ParseUint(id))
-	if err != nil || !product.IsActive {
+	if err != nil || !product.IsActive || !shopOpen(product) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "商品不存在"})
 		return
 	}
@@ -249,8 +256,8 @@ func (h *APIHandler) RepayOrder(c *gin.Context) {
 
 	paymentResp, err := h.paymentService.CreatePayment(paymentReq)
 	if err != nil {
-		log.Printf("重新支付失败: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "支付接口调用失败: " + err.Error()})
+		log.Printf("重新支付失败 order=%s: %v", order.OrderNo, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "支付接口调用失败，请稍后重试或使用余额支付"})
 		return
 	}
 
@@ -284,9 +291,9 @@ func (h *APIHandler) CreateOrder(c *gin.Context) {
 
 	var req struct {
 		ProductID uint   `json:"product_id" binding:"required"`
-		Quantity  int    `json:"quantity" binding:"required,min=1"`
-		Contact   string `json:"contact"`
-		Remark    string `json:"remark"`
+		Quantity  int    `json:"quantity" binding:"required,min=1,max=1000"`
+		Contact   string `json:"contact" binding:"max=200"`
+		Remark    string `json:"remark" binding:"max=1000"`
 		PayMethod string `json:"pay_method"` // nodeloc / balance；默认 nodeloc
 		CouponID  uint   `json:"coupon_id"`  // 优惠券ID（可选）
 	}
@@ -303,8 +310,13 @@ func (h *APIHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	if !product.IsActive {
+	if !product.IsActive || !shopOpen(product) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "商品已下架"})
+		return
+	}
+	// 店主给自己下单可以刷销量、刷评价，直接拒绝
+	if product.Shop != nil && product.Shop.UserID != 0 && product.Shop.UserID == u.ID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "不能购买自己店铺的商品"})
 		return
 	}
 
@@ -330,7 +342,7 @@ func (h *APIHandler) CreateOrder(c *gin.Context) {
 	if req.PayMethod == models.PayMethodBalance {
 		order, err := h.orderService.CreateAndProcessByBalance(u.ID, req.ProductID, req.Quantity, req.Contact, req.Remark)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"error": serviceErrorMessage(err, "下单失败，请稍后重试")})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
@@ -351,11 +363,7 @@ func (h *APIHandler) CreateOrder(c *gin.Context) {
 	// 创建订单（使用 CreatePendingOrder 创建待支付订单）
 	order, err := h.orderService.CreatePendingOrder(u.ID, req.ProductID, req.Quantity, req.Contact, req.Remark)
 	if err != nil {
-		if err.Error() == "insufficient stock" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "库存不足"})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "创建订单失败"})
-		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": serviceErrorMessage(err, "创建订单失败")})
 		return
 	}
 
@@ -369,7 +377,7 @@ func (h *APIHandler) CreateOrder(c *gin.Context) {
 	paymentResp, err := h.paymentService.CreatePayment(paymentReq)
 	if err != nil {
 		// 支付接口调用失败，取消待支付订单并返回错误
-		fmt.Printf("支付接口调用失败: %v\n", err)
+		log.Printf("支付接口调用失败 order=%s: %v", order.OrderNo, err)
 		h.orderService.Cancel(order.ID)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "支付接口调用失败，请稍后重试或使用余额支付",
@@ -426,11 +434,11 @@ func (h *APIHandler) CreateProductReview(c *gin.Context) {
 
 	var body struct {
 		Rating  int    `json:"rating" binding:"required,min=1,max=5"`
-		Title   string `json:"title"`
-		Content string `json:"content"`
+		Title   string `json:"title" binding:"max=200"`
+		Content string `json:"content" binding:"max=2000"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误：评分须在 1-5 之间"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误：评分须在 1-5 之间，标题不超过 200 字，内容不超过 2000 字"})
 		return
 	}
 
@@ -446,6 +454,21 @@ func (h *APIHandler) CreateProductReview(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "评价已提交"})
+}
+
+// shopOpen 商品所属店铺是否正常营业（被封禁/待审核店铺的商品不能浏览和购买）
+func shopOpen(p *models.Product) bool {
+	return p.Shop == nil || p.Shop.Status == models.ShopStatusApproved
+}
+
+// serviceErrorMessage 业务错误原样返回给用户，其它错误（数据库等）只记日志，返回通用提示
+func serviceErrorMessage(err error, fallback string) string {
+	var se *services.ServiceError
+	if errors.As(err, &se) {
+		return se.Message
+	}
+	log.Printf("%s: %v", fallback, err)
+	return fallback
 }
 
 // ParseUint 解析 uint

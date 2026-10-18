@@ -239,7 +239,22 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+  syncPayment();
 });
+
+// 付款后如果支付平台的跳转没回到本站（关掉了页面等），订单会一直停在待支付。
+// 进入订单页时向后端要一次支付状态，后端会去 NodeLoc 查询并补发货。
+async function syncPayment() {
+  if (order.value?.status !== 0 || !order.value.payment_url) return;
+  try {
+    const res = await $fetch<{ paid: boolean }>(`/api/order/${route.params.orderNo}/status`, { credentials: "include" });
+    if (res.paid) {
+      order.value = await $fetch<Order>(`/api/orders/${route.params.orderNo}`, { credentials: "include" });
+    }
+  } catch {
+    // 查询失败不影响页面展示
+  }
+}
 
 function openReview() {
   reviewForm.value = { rating: 5, title: "", content: "" };

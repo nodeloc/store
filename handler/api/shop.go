@@ -3,7 +3,6 @@ package api
 import (
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -395,12 +394,7 @@ func (h *ShopHandler) MyShopCreateProduct(c *gin.Context) {
 		PromoStart:   req.PromoStart,
 		PromoEnd:     req.PromoEnd,
 	}
-	if !models.ValidDeliveryType(product.DeliveryType) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "发货方式无效"})
-		return
-	}
-	if product.DeliveryType == models.DeliveryTypeFixed && strings.TrimSpace(product.FixedContent) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "固定内容发货需要填写发货内容"})
+	if !h.validateProduct(c, product, true) {
 		return
 	}
 	if err := h.productService.Create(product); err != nil {
@@ -443,6 +437,7 @@ func (h *ShopHandler) MyShopUpdateProduct(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
+	categoryChanged := req.CategoryID != nil && *req.CategoryID != product.CategoryID
 	if req.CategoryID != nil { product.CategoryID = *req.CategoryID }
 	if req.Name != "" { product.Name = req.Name }
 	product.Description = req.Description
@@ -459,12 +454,7 @@ func (h *ShopHandler) MyShopUpdateProduct(c *gin.Context) {
 	if req.PromoPrice != nil { product.PromoPrice = *req.PromoPrice }
 	product.PromoStart = req.PromoStart
 	product.PromoEnd = req.PromoEnd
-	if !models.ValidDeliveryType(product.DeliveryType) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "发货方式无效"})
-		return
-	}
-	if product.DeliveryType == models.DeliveryTypeFixed && strings.TrimSpace(product.FixedContent) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "固定内容发货需要填写发货内容"})
+	if !h.validateProduct(c, product, categoryChanged) {
 		return
 	}
 
@@ -474,6 +464,19 @@ func (h *ShopHandler) MyShopUpdateProduct(c *gin.Context) {
 	}
 	product.ComputePromo()
 	c.JSON(http.StatusOK, models.ToOwnerProduct(*product))
+}
+
+// validateProduct 校验商品字段，失败时直接写 400 响应
+func (h *ShopHandler) validateProduct(c *gin.Context, product *models.Product, checkCategory bool) bool {
+	if err := h.productService.Validate(product); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return false
+	}
+	if checkCategory && !h.productService.CategoryExists(product.CategoryID) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "商品分类不存在"})
+		return false
+	}
+	return true
 }
 
 // MyShopDeleteProduct 店主删除商品
@@ -508,7 +511,13 @@ func (h *ShopHandler) MyShopGetCardKeys(c *gin.Context) {
 		return
 	}
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if page < 1 {
+		page = 1
+	}
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
+	if pageSize < 1 || pageSize > 200 {
+		pageSize = 50
+	}
 	cardKeys, total, err := h.cardKeyService.GetWithPagination(pid, page, pageSize)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取卡密失败"})

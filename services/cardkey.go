@@ -219,34 +219,21 @@ func (s *CardKeyService) GetByProduct(productID uint) ([]models.CardKey, error) 
 	return cardKeys, nil
 }
 
-// GetAvailableByProduct 获取商品的可售卡密
-func (s *CardKeyService) GetAvailableByProduct(productID uint, limit int) ([]models.CardKey, error) {
-	var cardKeys []models.CardKey
-	if err := database.GetDB().
-		Where("product_id = ? AND status = ?", productID, models.CardKeyStatusAvailable).
-		Order("id asc").
-		Limit(limit).
-		Find(&cardKeys).Error; err != nil {
-		return nil, err
+// AllocateTx 把最多 limit 张可售卡密分配给订单，返回实际分配的张数。
+// 用一条带条件的 UPDATE 完成"挑选 + 标记"，而不是先查再改：并发下单时 InnoDB 行锁
+// 保证同一张卡密只会被一个订单拿到（先查再改会把同一张卡卖给两个人）。
+func (s *CardKeyService) AllocateTx(tx *gorm.DB, productID, orderID uint, limit int) (int64, error) {
+	if limit <= 0 {
+		return 0, nil
 	}
-	return cardKeys, nil
-}
-
-// MarkAsSold 标记卡密为已售出
-func (s *CardKeyService) MarkAsSold(ids []uint, orderID uint) error {
-	return s.MarkAsSoldTx(database.GetDB(), ids, orderID)
-}
-
-// MarkAsSoldTx 在指定事务中标记卡密为已售出
-func (s *CardKeyService) MarkAsSoldTx(tx *gorm.DB, ids []uint, orderID uint) error {
 	now := time.Now()
-	return tx.Model(&models.CardKey{}).
-		Where("id IN ?", ids).
-		Updates(map[string]interface{}{
-			"status":   models.CardKeyStatusSold,
-			"order_id": orderID,
-			"sold_at":  now,
-		}).Error
+	res := tx.Exec(
+		"UPDATE card_keys SET status = ?, order_id = ?, sold_at = ?, updated_at = ? "+
+			"WHERE product_id = ? AND status = ? ORDER BY id LIMIT ?",
+		models.CardKeyStatusSold, orderID, now, now,
+		productID, models.CardKeyStatusAvailable, limit,
+	)
+	return res.RowsAffected, res.Error
 }
 
 // GetWithPagination 分页获取卡密

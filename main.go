@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nodeloc-faka/config"
@@ -80,8 +81,9 @@ func main() {
 	router := gin.Default()
 	log.Println("✓ API 模式启动")
 
-	// 应用 Session 中间件
+	router.Use(middleware.SecurityHeaders())
 	router.Use(middleware.SessionMiddleware(sessionStore))
+	sessionStore.StartJanitor(time.Hour)
 
 	// ========================================
 	// API 路由 (JSON 响应)
@@ -121,6 +123,8 @@ func main() {
 		apiAuthGroup.GET("/orders/:orderNo", apiHandler.GetOrder)
 		apiAuthGroup.POST("/orders/:orderNo/repay", apiHandler.RepayOrder)
 		apiAuthGroup.POST("/orders/create", apiHandler.CreateOrder)
+		apiAuthGroup.GET("/order/:order_no/status", paymentHandler.QueryOrder)
+		apiAuthGroup.POST("/order/:order_no/cancel", paymentHandler.CancelOrder)
 
 		// 评价
 		apiAuthGroup.POST("/products/:id/reviews", apiHandler.CreateProductReview)
@@ -242,10 +246,7 @@ func main() {
 	// ========================================
 	// 支付回调路由（后端处理）
 	// ========================================
-	router.POST("/api/order/create", paymentHandler.CreateOrder)
 	router.GET("/payment/callback", paymentHandler.PaymentCallback)
-	router.GET("/api/order/:order_no/status", paymentHandler.QueryOrder)
-	router.POST("/api/order/:order_no/cancel", paymentHandler.CancelOrder)
 
 	// 静态文件服务（上传的图片）
 	router.Static("/uploads", "./uploads")

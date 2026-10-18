@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -67,8 +68,7 @@ type CreatePaymentResponse struct {
 func (s *PaymentService) CreatePayment(req *CreatePaymentRequest) (*CreatePaymentResponse, error) {
 	cfg := s.GetConfig()
 	if cfg.PaymentID == "" || cfg.SecretKey == "" {
-		fmt.Printf("支付配置检查 - PaymentID: %s, SecretKey: %s\n", cfg.PaymentID, cfg.SecretKey)
-		return nil, fmt.Errorf("支付未配置 (PaymentID=%s, SecretKey=%s)", cfg.PaymentID, cfg.SecretKey)
+		return nil, fmt.Errorf("支付未配置")
 	}
 
 	// 准备签名参数
@@ -84,8 +84,6 @@ func (s *PaymentService) CreatePayment(req *CreatePaymentRequest) (*CreatePaymen
 
 	// 发送请求
 	apiURL := fmt.Sprintf("%s/payment/pay/%s/process", cfg.PaymentURL, cfg.PaymentID)
-	fmt.Printf("调用支付API: %s\n", apiURL)
-	fmt.Printf("支付参数: amount=%d, description=%s, order_id=%s\n", req.Amount, req.Description, req.OrderID)
 
 	// 构建表单数据
 	formData := url.Values{}
@@ -134,7 +132,7 @@ type PaymentCallback struct {
 func (s *PaymentService) VerifyCallback(callback *PaymentCallback) bool {
 	cfg := s.GetConfig()
 	if cfg.SecretKey == "" {
-		fmt.Println("回调验证失败: SecretKey 为空")
+		log.Println("回调验证失败: 支付密钥未配置")
 		return false
 	}
 
@@ -151,25 +149,16 @@ func (s *PaymentService) VerifyCallback(callback *PaymentCallback) bool {
 
 	// 回调验证：直接用 secret_key 做 HMAC（不经过 token_hash）
 	expectedSignature := s.generateSignatureForCallback(params, cfg.SecretKey)
-
-	fmt.Println("=== 回调签名验证 ===")
-	fmt.Printf("  transaction_id: %s\n", callback.TransactionID)
-	fmt.Printf("  external_reference: %s\n", callback.ExternalReference)
-	fmt.Printf("  signature (接收): %s\n", callback.Signature)
-	fmt.Printf("  signature (计算): %s\n", expectedSignature)
-
 	isValid := hmac.Equal([]byte(expectedSignature), []byte(callback.Signature))
-	fmt.Printf("  验证结果: %v\n", isValid)
 
 	// 兼容：如果直接 secret_key 方式失败，再尝试 token_hash 方式
 	if !isValid {
 		expectedAlt := s.generateSignatureForPayment(params, cfg.SecretKey)
 		isValid = hmac.Equal([]byte(expectedAlt), []byte(callback.Signature))
-		if isValid {
-			fmt.Println("  (使用 token_hash 方式验证通过)")
-		}
 	}
-	fmt.Println("==================")
+	if !isValid {
+		log.Printf("回调签名验证失败 tx=%s order=%s", callback.TransactionID, callback.ExternalReference)
+	}
 	return isValid
 }
 
@@ -261,14 +250,7 @@ func (s *PaymentService) generateSignatureForPayment(params map[string]string, t
 	// 4. 计算 HMAC-SHA256(token_hash, paramString) - 根据文档第 70 行
 	h := hmac.New(sha256.New, []byte(tokenHash))
 	h.Write([]byte(paramString))
-	signature := hex.EncodeToString(h.Sum(nil))
-
-	fmt.Printf("签名调试 - 参数字符串: %s\n", paramString)
-	fmt.Printf("签名调试 - token: %s\n", token)
-	fmt.Printf("签名调试 - token_hash (SHA256): %s\n", tokenHash)
-	fmt.Printf("签名调试 - signature (HMAC-SHA256): %s\n", signature)
-
-	return signature
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // generateSignatureForCallback 生成回调验证的签名（直接使用 secret_key）
@@ -290,13 +272,7 @@ func (s *PaymentService) generateSignatureForCallback(params map[string]string, 
 	// 3. 计算 HMAC-SHA256(secret_key, paramString) - 根据文档第 157 行
 	h := hmac.New(sha256.New, []byte(secretKey))
 	h.Write([]byte(paramString))
-	signature := hex.EncodeToString(h.Sum(nil))
-
-	fmt.Printf("回调签名生成 - 参数字符串: %s\n", paramString)
-	fmt.Printf("回调签名生成 - secret_key: %s\n", secretKey)
-	fmt.Printf("回调签名生成 - signature: %s\n", signature)
-
-	return signature
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // ProcessPaymentCallback 处理支付回调 — 委托给 OrderService 统一处理

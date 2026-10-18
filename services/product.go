@@ -1,7 +1,10 @@
 package services
 
 import (
+	"math"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nodeloc-faka/database"
 	"github.com/nodeloc-faka/models"
@@ -13,6 +16,40 @@ type ProductService struct{}
 // NewProductService 创建商品服务
 func NewProductService() *ProductService {
 	return &ProductService{}
+}
+
+// Validate 校验商品字段，返回的 *ServiceError 可直接展示给用户。
+// 价格必须是正整数：NodeLoc 能量支付按整数金额收款，小数价格会被截断，买家实际少付。
+func (s *ProductService) Validate(p *models.Product) error {
+	p.Name = strings.TrimSpace(p.Name)
+	switch {
+	case p.Name == "":
+		return &ServiceError{Message: "商品名称不能为空"}
+	case utf8.RuneCountInString(p.Name) > 200:
+		return &ServiceError{Message: "商品名称不能超过 200 个字符"}
+	case p.Price <= 0 || p.Price != math.Trunc(p.Price) || p.Price > 1e9:
+		return &ServiceError{Message: "价格必须是正整数"}
+	case p.PromoPrice < 0 || p.PromoPrice != math.Trunc(p.PromoPrice) || p.PromoPrice > 1e9:
+		return &ServiceError{Message: "促销价必须是非负整数"}
+	case p.OrigPrice < 0 || p.OrigPrice > 1e9:
+		return &ServiceError{Message: "原价不能为负数"}
+	case p.StockCount < 0:
+		return &ServiceError{Message: "库存不能为负数"}
+	case !models.ValidDeliveryType(p.DeliveryType):
+		return &ServiceError{Message: "发货方式无效"}
+	case p.DeliveryType == models.DeliveryTypeFixed && strings.TrimSpace(p.FixedContent) == "":
+		return &ServiceError{Message: "固定内容发货需要填写发货内容"}
+	case len(p.Image) > 500 || len(p.Images) > 2000:
+		return &ServiceError{Message: "图片地址过长"}
+	}
+	return nil
+}
+
+// CategoryExists 分类是否存在
+func (s *ProductService) CategoryExists(id uint) bool {
+	var n int64
+	database.GetDB().Model(&models.Category{}).Where("id = ?", id).Count(&n)
+	return n > 0
 }
 
 // Create 创建商品

@@ -60,6 +60,19 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 	}
 	defer src.Close()
 
+	// 校验文件内容确实是图片：只看扩展名的话，可以把 HTML/脚本改名成 .png 传上来
+	head := make([]byte, 512)
+	n, _ := io.ReadFull(src, head)
+	allowedTypes := map[string]bool{"image/jpeg": true, "image/png": true, "image/gif": true, "image/webp": true}
+	if !allowedTypes[http.DetectContentType(head[:n])] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "文件内容不是有效的图片"})
+		return
+	}
+	if _, err := src.Seek(0, io.SeekStart); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取文件失败"})
+		return
+	}
+
 	// 计算文件 MD5 作为文件名
 	hash := md5.New()
 	if _, err := io.Copy(hash, src); err != nil {
