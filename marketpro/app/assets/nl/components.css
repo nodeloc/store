@@ -115,7 +115,7 @@
 .nl-search__go:hover { transform: rotate(-8deg) scale(1.06); box-shadow: var(--shadow-glow); }
 
 /* ---------- CategoryChip ---------- */
-.nl-chips { display: flex; gap: var(--space-2); overflow-x: auto; scrollbar-width: none; padding: 2px; }
+.nl-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: 2px; }
 .nl-chip { display: inline-flex; align-items: center; gap: var(--space-2); height: 44px; padding: 0 var(--space-4) 0 6px; border-radius: var(--radius-pill); border: 1px solid var(--border); background: var(--surface); color: var(--ink); font: 500 14px/1 var(--font-sans); white-space: nowrap; cursor: pointer; text-decoration: none; transition: border-color var(--dur-fast), background-color var(--dur-base), transform var(--dur-base) var(--ease-spring); }
 .nl-chip__icon { width: 32px; height: 32px; border-radius: var(--radius-pill); display: grid; place-items: center; background: var(--surface-sunken); color: var(--ink-muted); font-size: 17px; transition: transform var(--dur-base) var(--ease-spring), background-color var(--dur-base); }
 .nl-chip__count { font: 500 12px/1 var(--font-mono); color: var(--ink-subtle); }
