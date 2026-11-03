@@ -87,7 +87,9 @@ func (h *PaymentHandler) QueryOrder(c *gin.Context) {
 
 	if order.Status == models.OrderStatusPending && order.TransactionID != "" {
 		queryResp, err := h.paymentService.QueryPayment(order.TransactionID)
-		if err == nil && queryResp.Status == "completed" {
+		if err != nil {
+			log.Printf("QueryOrder 查询订单 %s 支付状态失败: %v", orderNo, err)
+		} else if queryResp.Status == "completed" {
 			// 主动查询是服务端直连 NodeLoc，结果可信，无需签名
 			if _, processErr := h.orderService.ProcessPaymentCallback(
 				queryResp.TransactionID,
