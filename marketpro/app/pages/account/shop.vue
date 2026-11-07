@@ -193,6 +193,7 @@
                           <tr>
                             <th class="py-10 px-12 text-sm fw-medium">订单号</th>
                             <th class="py-10 px-12 text-sm fw-medium">商品</th>
+                            <th class="py-10 px-12 text-sm fw-medium">买家</th>
                             <th class="py-10 px-12 text-sm fw-medium">金额</th>
                             <th class="py-10 px-12 text-sm fw-medium">状态</th>
                             <th class="py-10 px-12 text-sm fw-medium">时间</th>
@@ -202,6 +203,21 @@
                           <tr v-for="o in dashData.order_stats?.recent_orders" :key="o.id">
                             <td class="py-10 px-12 text-sm font-monospace">{{ o.order_no }}</td>
                             <td class="py-10 px-12 text-sm" style="max-width:140px">{{ o.product?.name }}</td>
+                            <td class="py-10 px-12 text-sm">
+                              <a
+                                v-if="o.user?.username"
+                                :href="buyerProfileUrl(o.user)"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="buyer-link"
+                                :title="`在 NodeLoc 查看 @${o.user.username} 的主页`"
+                              >
+                                <img v-if="o.user.avatar_url" :src="o.user.avatar_url" class="buyer-avatar" :alt="o.user.username" />
+                                <span v-else class="buyer-avatar buyer-avatar--empty"><i class="ph ph-user"></i></span>
+                                <span class="buyer-name">@{{ o.user.username }}</span>
+                              </a>
+                              <span v-else class="text-gray-400">-</span>
+                            </td>
                             <td class="py-10 px-12 fw-semibold text-danger-600">{{ o.total_amount }}</td>
                             <td class="py-10 px-12"><span class="badge" :class="orderStatusClass(o.status)">{{ orderStatusText(o.status) }}</span></td>
                             <td class="py-10 px-12 text-sm text-gray-400">{{ fmtDate(o.created_at) }}</td>
@@ -374,7 +390,7 @@
                       <tr>
                         <th class="py-12 px-16 text-sm fw-medium">订单号</th>
                         <th class="py-12 px-16 text-sm fw-medium">商品</th>
-                        <th class="py-12 px-16 text-sm fw-medium">买家联系</th>
+                        <th class="py-12 px-16 text-sm fw-medium">买家</th>
                         <th class="py-12 px-16 text-sm fw-medium">金额</th>
                         <th class="py-12 px-16 text-sm fw-medium">状态</th>
                         <th class="py-12 px-16 text-sm fw-medium">操作</th>
@@ -384,7 +400,24 @@
                       <tr v-for="o in orders" :key="o.id">
                         <td class="py-12 px-16 text-sm font-monospace">{{ o.order_no }}</td>
                         <td class="py-12 px-16 text-sm" style="max-width:140px">{{ o.product?.name }}</td>
-                        <td class="py-12 px-16 text-sm text-gray-500">{{ o.contact || o.user?.username || "-" }}</td>
+                        <td class="py-12 px-16 text-sm">
+                          <div class="buyer-cell">
+                            <a
+                              v-if="o.user?.username"
+                              :href="buyerProfileUrl(o.user)"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="buyer-link"
+                              :title="`在 NodeLoc 查看 @${o.user.username} 的主页`"
+                            >
+                              <img v-if="o.user.avatar_url" :src="o.user.avatar_url" class="buyer-avatar" :alt="o.user.username" />
+                              <span v-else class="buyer-avatar buyer-avatar--empty"><i class="ph ph-user"></i></span>
+                              <span class="buyer-name">@{{ o.user.username }}</span>
+                            </a>
+                            <span v-else class="text-gray-400">-</span>
+                            <div v-if="o.contact" class="buyer-contact text-gray-500">{{ o.contact }}</div>
+                          </div>
+                        </td>
                         <td class="py-12 px-16 fw-semibold text-danger-600"><i class="ph-fill ph-lightning-a" style="font-size:0.85em;vertical-align:middle;margin-right:1px"></i>{{ o.total_amount }}</td>
                         <td class="py-12 px-16">
                           <span class="badge" :class="orderStatusClass(o.status)">{{ orderStatusText(o.status) }}</span>
@@ -463,12 +496,28 @@
                     <div v-for="r in reviews" :key="r.id" class="border border-gray-100 rounded-8 p-20">
                       <div class="d-flex justify-content-between align-items-start mb-12">
                         <div class="d-flex align-items-center gap-12">
-                          <img v-if="r.user?.avatar_url" :src="r.user.avatar_url" class="rounded-circle" style="width:36px;height:36px;object-fit:cover" :alt="r.user?.username" />
-                          <div v-else class="rounded-circle bg-gray-100 d-flex align-items-center justify-content-center" style="width:36px;height:36px">
-                            <i class="ph ph-user text-gray-400"></i>
-                          </div>
+                          <component
+                            :is="r.user?.username ? 'a' : 'span'"
+                            :href="r.user?.username ? buyerProfileUrl(r.user) : undefined"
+                            :target="r.user?.username ? '_blank' : undefined"
+                            :rel="r.user?.username ? 'noopener noreferrer' : undefined"
+                            :title="r.user?.username ? `在 NodeLoc 查看 @${r.user.username} 的主页` : undefined"
+                            class="d-flex"
+                          >
+                            <img v-if="r.user?.avatar_url" :src="r.user.avatar_url" class="rounded-circle" style="width:36px;height:36px;object-fit:cover" :alt="r.user?.username" />
+                            <div v-else class="rounded-circle bg-gray-100 d-flex align-items-center justify-content-center" style="width:36px;height:36px">
+                              <i class="ph ph-user text-gray-400"></i>
+                            </div>
+                          </component>
                           <div>
-                            <div class="fw-medium text-sm">{{ r.user?.username || '匿名用户' }}</div>
+                            <a
+                              v-if="r.user?.username"
+                              :href="buyerProfileUrl(r.user)"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="fw-medium text-sm buyer-name"
+                            >{{ r.user.username }}</a>
+                            <div v-else class="fw-medium text-sm">匿名用户</div>
                             <div class="d-flex gap-2 mt-2">
                               <i v-for="s in 5" :key="s" class="ph-fill ph-star" :class="s <= r.rating ? 'text-warning-600' : 'text-gray-200'" style="font-size:13px"></i>
                             </div>
@@ -759,6 +808,21 @@
           <button class="btn-close" @click="shipDialog = false"></button>
         </div>
         <div v-if="shipOrder" class="mb-16 p-12 bg-gray-50 rounded-8 text-sm">
+          <template v-if="shipOrder.user?.username">
+            <div class="text-gray-500 mb-4">买家</div>
+            <a
+              :href="buyerProfileUrl(shipOrder.user)"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="buyer-link mb-8"
+              :title="`在 NodeLoc 查看 @${shipOrder.user.username} 的主页`"
+            >
+              <img v-if="shipOrder.user.avatar_url" :src="shipOrder.user.avatar_url" class="buyer-avatar" :alt="shipOrder.user.username" />
+              <span v-else class="buyer-avatar buyer-avatar--empty"><i class="ph ph-user"></i></span>
+              <span class="buyer-name">@{{ shipOrder.user.username }}</span>
+              <i class="ph ph-arrow-square-out text-gray-400"></i>
+            </a>
+          </template>
           <div class="text-gray-500 mb-4">买家联系方式</div>
           <div class="fw-semibold">{{ shipOrder.contact || "未填写" }}</div>
           <div class="text-gray-500 mt-8 mb-4">订单号</div>
@@ -1289,6 +1353,11 @@ async function doShip() {
   }
 }
 
+// 买家在 NodeLoc 论坛的个人主页，卖家可以从这里私信联系买家
+function buyerProfileUrl(u: { username?: string } | null | undefined) {
+  return u?.username ? `https://www.nodeloc.com/u/${encodeURIComponent(u.username)}` : "";
+}
+
 function fmtDate(d: string) {
   if (!d) return "-";
   return new Date(d).toLocaleString("zh-CN", { hour12: false });
@@ -1393,6 +1462,50 @@ function filterReviews(rating: number) {
 </script>
 
 <style scoped>
+/* 买家头像 + 用户名，点击打开 NodeLoc 个人主页 */
+.buyer-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.buyer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  color: var(--ink);
+  text-decoration: none;
+}
+.buyer-link:hover .buyer-name {
+  color: var(--brand);
+  text-decoration: underline;
+}
+.buyer-avatar {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.buyer-avatar--empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+}
+.buyer-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  text-decoration: none;
+}
+.buyer-contact {
+  font-size: 12px;
+  word-break: break-all;
+}
 .modal-backdrop-custom {
   position: fixed;
   inset: 0;
