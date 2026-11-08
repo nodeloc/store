@@ -20,7 +20,10 @@
                 <i :class="status.icon"></i>{{ status.label }}
               </span>
             </h2>
-            <div v-if="order.status === 3" class="nl-note">
+            <div v-if="order.refunded_at" class="nl-note">
+              <i class="ph ph-arrow-counter-clockwise"></i>订单已退款，{{ order.refund_amount }} 已{{ order.refund_method === 'balance' ? '退回站内余额' : '退回你的 NodeLoc 账户' }}。
+            </div>
+            <div v-else-if="order.status === 3" class="nl-note">
               <i class="ph ph-x-circle"></i>订单已取消，库存已释放。
             </div>
             <NlSteps
@@ -166,7 +169,7 @@
 
 <script setup lang="ts">
 import Breadcrumb from "~/components/layout/banner/Breadcrumb.vue";
-import { ORDER_STATUS, categoryIcon, fmtDateTime, type NlProduct } from "~/utils/nl";
+import { orderStatusMeta, categoryIcon, fmtDateTime, type NlProduct } from "~/utils/nl";
 
 definePageMeta({ layout: "layout-three" });
 useHead({ title: "订单详情" });
@@ -188,6 +191,9 @@ interface Order {
   payment_url?: string;
   deliver_content?: string;
   deliver_note?: string;
+  refunded_at?: string | null;
+  refund_amount?: number;
+  refund_method?: string;
   card_keys?: CardKey[];
   product?: NlProduct;
 }
@@ -202,7 +208,7 @@ const submitting = ref(false);
 const reviewError = ref("");
 const reviewForm = ref({ rating: 5, title: "", content: "" });
 
-const status = computed(() => ORDER_STATUS[order.value?.status ?? -1] || { label: "未知", tone: "", icon: "ph ph-question" });
+const status = computed(() => orderStatusMeta(order.value));
 const isFixed = computed(() => order.value?.product?.delivery_type === 2);
 const copied = ref(false);
 

@@ -146,6 +146,8 @@ const TX_LABELS: Record<string, string> = {
   withdrawal_refund: "提现退款",
   purchase:          "余额支付",
   admin_adjust:      "后台调整",
+  order_refund:      "订单退款",
+  refund_reversal:   "退款扣回",
 };
 
 const TX_BADGE: Record<string, string> = {
@@ -154,6 +156,8 @@ const TX_BADGE: Record<string, string> = {
   withdrawal_refund: "bg-main-100 text-main-600",
   purchase:          "bg-danger-100 text-danger-600",
   admin_adjust:      "bg-gray-100 text-gray-600",
+  order_refund:      "bg-main-100 text-main-600",
+  refund_reversal:   "bg-danger-100 text-danger-600",
 };
 
 function txTypeLabel(type: string) {

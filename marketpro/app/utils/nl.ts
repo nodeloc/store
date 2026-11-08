@@ -115,6 +115,14 @@ export const ORDER_STATUS: Record<number, { label: string; tone: string; icon: s
   3: { label: "已取消", tone: "", icon: "ph ph-x" },
 };
 
+export const REFUNDED_STATUS = { label: "已退款", tone: "", icon: "ph ph-arrow-counter-clockwise" };
+
+/** 订单状态展示：已退款的订单（status=3 且 refunded_at 非空）单独显示 */
+export function orderStatusMeta(o: { status: number; refunded_at?: string | null } | null | undefined) {
+  if (o?.refunded_at) return REFUNDED_STATUS;
+  return ORDER_STATUS[o?.status ?? -1] || { label: "未知", tone: "", icon: "ph ph-question" };
+}
+
 export function isNew(p: NlProduct) {
   if (!p.created_at) return false;
   return Date.now() - new Date(p.created_at).getTime() < 7 * 86400 * 1000;

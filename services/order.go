@@ -160,6 +160,42 @@ func (s *OrderService) Cancel(id uint) error {
 		Update("status", models.OrderStatusCancelled).Error
 }
 
+// AdminStatusTransitions 后台可执行的状态流转：已完成/已取消为终态，不可再改
+var AdminStatusTransitions = map[int][]int{
+	models.OrderStatusPending: {models.OrderStatusPaid, models.OrderStatusCancelled},
+	models.OrderStatusPaid:    {models.OrderStatusCompleted, models.OrderStatusCancelled},
+	models.OrderStatusShipped: {models.OrderStatusCompleted, models.OrderStatusCancelled},
+}
+
+// AdminUpdateStatus 后台改订单状态；以当前状态为条件更新，避免与回调/其它操作并发时覆盖
+func (s *OrderService) AdminUpdateStatus(order *models.Order, to int) error {
+	allowed := false
+	for _, st := range AdminStatusTransitions[order.Status] {
+		if st == to {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return &ServiceError{Message: "当前订单状态不允许此操作"}
+	}
+
+	updates := map[string]interface{}{"status": to}
+	if to == models.OrderStatusPaid {
+		updates["paid_at"] = time.Now()
+	}
+	res := database.GetDB().Model(&models.Order{}).
+		Where("id = ? AND status = ?", order.ID, order.Status).
+		Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return &ServiceError{Message: "订单状态已变化，请刷新后重试"}
+	}
+	return nil
+}
+
 // CancelPending 仅取消仍处于待支付的订单；与支付回调并发时不会把已付款订单改成已取消
 func (s *OrderService) CancelPending(id uint) error {
 	res := database.GetDB().Model(&models.Order{}).

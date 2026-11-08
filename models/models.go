@@ -189,6 +189,12 @@ type Order struct {
 	DeliverContent string `gorm:"type:text" json:"deliver_content"` // 发货内容（TG号/快递单号等）
 	DeliverNote    string `gorm:"type:text" json:"deliver_note"`    // 发货备注
 
+	// 退款字段（后台退款）
+	RefundedAt   *time.Time `json:"refunded_at"`                       // 退款时间，非空即已退款
+	RefundAmount float64    `gorm:"default:0" json:"refund_amount"`    // 退给买家的金额
+	RefundMethod string     `gorm:"size:20" json:"refund_method"`      // native(原路退回) / transfer(转账退回) / balance(退回余额)
+	RefundTxID   string     `gorm:"size:100" json:"refund_tx_id"`      // NodeLoc 退款/转账交易号
+
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	CardKeys  []CardKey  `gorm:"foreignKey:OrderID" json:"card_keys,omitempty"`
@@ -308,6 +314,8 @@ const (
 	BalanceTxWithdrawalRefund  = "withdrawal_refund"  // 提现拒绝退款
 	BalanceTxPurchase          = "purchase"           // 余额支付商品
 	BalanceTxAdminAdjust       = "admin_adjust"       // 后台调整
+	BalanceTxOrderRefund       = "order_refund"       // 订单退款（余额支付退回）
+	BalanceTxRefundReversal    = "refund_reversal"    // 订单退款扣回店主收入
 )
 
 // ProductReview 商品评价

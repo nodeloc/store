@@ -1,7 +1,9 @@
 package admin
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -458,25 +460,36 @@ func (h *AdminHandler) UpdateOrderStatus(c *gin.Context) {
 		return
 	}
 
-	// 根据状态调用不同方法
-	switch req.Status {
-	case models.OrderStatusPaid:
-		err = h.orderService.MarkAsPaid(order.ID)
-	case models.OrderStatusCompleted:
-		err = h.orderService.Complete(order.ID)
-	case models.OrderStatusCancelled:
-		err = h.orderService.Cancel(order.ID)
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的状态"})
-		return
-	}
-
-	if err != nil {
+	if err := h.orderService.AdminUpdateStatus(order, req.Status); err != nil {
+		var se *services.ServiceError
+		if errors.As(err, &se) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": se.Message})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新订单状态失败"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
+}
+
+// RefundOrder 全额退款（能量原路退回/转账退回，余额支付退回余额），退款后订单置为已取消
+func (h *AdminHandler) RefundOrder(c *gin.Context) {
+	orderNo := c.Param("orderNo")
+	order, err := h.orderService.AdminRefund(orderNo)
+	if err != nil {
+		var se *services.ServiceError
+		if errors.As(err, &se) {
+			log.Printf("订单 %s 退款失败: %s", orderNo, se.Message)
+			c.JSON(http.StatusBadRequest, gin.H{"error": se.Message})
+			return
+		}
+		log.Printf("订单 %s 退款失败: %v", orderNo, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "退款失败"})
+		return
+	}
+	log.Printf("订单 %s 已退款 method=%s amount=%.0f tx=%s", orderNo, order.RefundMethod, order.RefundAmount, order.RefundTxID)
+	c.JSON(http.StatusOK, gin.H{"message": "退款成功", "order": order})
 }
 
 // ============================================

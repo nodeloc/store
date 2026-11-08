@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -13,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/nodeloc-faka/payment"
 )
 
 // PaymentService 支付服务
@@ -36,11 +39,22 @@ type PaymentConfig struct {
 
 // GetConfig 获取支付配置
 func (s *PaymentService) GetConfig() *PaymentConfig {
-	return &PaymentConfig{
+	cfg := &PaymentConfig{
 		PaymentID:  s.settingService.Get(SettingPaymentID),
 		SecretKey:  s.settingService.Get(SettingPaymentSecret),
 		PaymentURL: "https://www.nodeloc.com",
 	}
+	// 与提现一致：后台未配置时回退到环境变量
+	if cfg.PaymentID == "" || cfg.SecretKey == "" {
+		env := getAppConfig()
+		if cfg.PaymentID == "" {
+			cfg.PaymentID = env.PaymentID
+		}
+		if cfg.SecretKey == "" {
+			cfg.SecretKey = env.PaymentSecret
+		}
+	}
+	return cfg
 }
 
 // IsConfigured 检查是否已配置支付
@@ -225,6 +239,86 @@ func (s *PaymentService) QueryPayment(transactionID string) (*QueryPaymentRespon
 	}
 
 	return &result, nil
+}
+
+// ErrRefundUnsupported NodeLoc 尚未提供原路退款接口（路由返回 404）
+var ErrRefundUnsupported = errors.New("NodeLoc 原路退款接口不可用")
+
+// RefundPaymentResponse 原路退款响应
+type RefundPaymentResponse struct {
+	Success           bool   `json:"success"`
+	TransactionID     string `json:"transaction_id"`
+	ExternalReference string `json:"external_reference"`
+	Status            string `json:"status"`
+	Amount            int    `json:"amount"`
+	MerchantPoints    int    `json:"merchant_points"`
+	Error             string `json:"error"`
+}
+
+// RefundPayment 原路全额退款：买家拿回全部积分，商家退回实收积分（无手续费损失）。
+// amount 必须等于交易积分；接口幂等，已退款的交易再次调用仍返回成功。
+func (s *PaymentService) RefundPayment(transactionID string, amount int) (*RefundPaymentResponse, error) {
+	cfg := s.GetConfig()
+	if cfg.PaymentID == "" || cfg.SecretKey == "" {
+		return nil, fmt.Errorf("支付未配置")
+	}
+
+	params := map[string]string{
+		"amount":         fmt.Sprintf("%d", amount),
+		"transaction_id": transactionID,
+	}
+	formData := url.Values{}
+	for k, v := range params {
+		formData.Set(k, v)
+	}
+	formData.Set("signature", s.generateSignatureForPayment(params, cfg.SecretKey))
+
+	apiURL := fmt.Sprintf("%s/payment/refund/%s", cfg.PaymentURL, cfg.PaymentID)
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.PostForm(apiURL, formData)
+	if err != nil {
+		return nil, fmt.Errorf("请求退款API失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %w", err)
+	}
+
+	// 交易已由 query 确认存在，此时空 body 的 404 只能是退款路由尚未部署
+	if resp.StatusCode == http.StatusNotFound && len(strings.TrimSpace(string(body))) == 0 {
+		return nil, ErrRefundUnsupported
+	}
+
+	var result RefundPaymentResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("退款API返回异常: status=%d body=%s", resp.StatusCode, string(body))
+	}
+	if resp.StatusCode != http.StatusOK || !result.Success {
+		msg := result.Error
+		if msg == "" {
+			msg = fmt.Sprintf("status=%d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("退款失败: %s", msg)
+	}
+	return &result, nil
+}
+
+// TransferRefund 原路退款不可用时，从商户账户转账退回（商户承担转账手续费）。
+// order_id 固定为 refund_<订单号>，NodeLoc 侧幂等，重复调用不会重复转账。
+func (s *PaymentService) TransferRefund(orderNo string, toNodeLocID int, toUsername string, amount int) (*payment.TransferResponse, error) {
+	cfg := s.GetConfig()
+	if cfg.PaymentID == "" || cfg.SecretKey == "" {
+		return nil, fmt.Errorf("支付未配置")
+	}
+	client := payment.NewClient(cfg.PaymentURL, cfg.PaymentID, cfg.SecretKey)
+	return client.Transfer(&payment.TransferRequest{
+		ToUserID:   toNodeLocID,
+		ToUsername: toUsername,
+		Amount:     amount,
+		OrderID:    "refund_" + orderNo,
+	})
 }
 
 // generateSignatureForPayment 生成发起支付的签名（使用 token_hash）

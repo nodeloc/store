@@ -15,11 +15,12 @@
 </template>
 
 <script setup lang="ts">
-import { ORDER_STATUS, categoryIcon, fmtDateTime, type NlProduct } from "~/utils/nl";
+import { orderStatusMeta, categoryIcon, fmtDateTime, type NlProduct } from "~/utils/nl";
 
 export interface NlOrderLite {
   order_no: string;
   status: number;
+  refunded_at?: string | null;
   quantity?: number;
   total_amount?: number;
   created_at?: string;
@@ -27,5 +28,5 @@ export interface NlOrderLite {
 }
 
 const props = defineProps<{ order: NlOrderLite }>();
-const st = computed(() => ORDER_STATUS[props.order.status] || { label: "未知", tone: "", icon: "ph ph-question" });
+const st = computed(() => orderStatusMeta(props.order));
 </script>
