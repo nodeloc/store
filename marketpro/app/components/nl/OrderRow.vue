@@ -20,6 +20,7 @@ import { orderStatusMeta, categoryIcon, fmtDateTime, type NlProduct } from "~/ut
 export interface NlOrderLite {
   order_no: string;
   status: number;
+  paid_at?: string | null;
   refunded_at?: string | null;
   quantity?: number;
   total_amount?: number;

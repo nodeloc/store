@@ -118,8 +118,10 @@ export const ORDER_STATUS: Record<number, { label: string; tone: string; icon: s
 export const REFUNDED_STATUS = { label: "已退款", tone: "", icon: "ph ph-arrow-counter-clockwise" };
 
 /** 订单状态展示：已退款的订单（status=3 且 refunded_at 非空）单独显示 */
-export function orderStatusMeta(o: { status: number; refunded_at?: string | null } | null | undefined) {
+export function orderStatusMeta(o: { status: number; paid_at?: string | null; refunded_at?: string | null } | null | undefined) {
   if (o?.refunded_at) return REFUNDED_STATUS;
+  // 已取消但收到了付款：等待退款
+  if (o?.status === 3 && o.paid_at) return { label: "待退款", tone: "warning", icon: "ph ph-hourglass" };
   return ORDER_STATUS[o?.status ?? -1] || { label: "未知", tone: "", icon: "ph ph-question" };
 }
 

@@ -65,6 +65,9 @@
             <el-tooltip v-if="row.refunded_at" :content="refundTip(row)" placement="top">
               <el-tag type="info" size="small">已退款</el-tag>
             </el-tooltip>
+            <el-tooltip v-else-if="row.status === 3 && row.paid_at" content="已付款但订单已取消，需要退款" placement="top">
+              <el-tag type="danger" effect="dark" size="small">待退款</el-tag>
+            </el-tooltip>
             <el-tag v-else :type="statusType(row.status)" size="small">{{ statusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
@@ -73,11 +76,11 @@
         </el-table-column>
         <el-table-column label="操作" width="100" fixed="right">
           <template #default="{ row }">
-            <el-dropdown v-if="ACTIONS[row.status]?.length || canRefund(row)" @command="(cmd: number | string) => onCommand(row, cmd)">
+            <el-dropdown v-if="ACTIONS[row.status]?.length || canRefund(row) || canSync(row)" @command="(cmd: number | string) => onCommand(row, cmd)">
               <el-button link type="primary" size="small">操作 <el-icon><ArrowDown /></el-icon></el-button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item v-if="ACTIONS[row.status]?.includes(1)" :command="1">标记已支付</el-dropdown-item>
+                  <el-dropdown-item v-if="canSync(row)" command="sync">同步支付状态</el-dropdown-item>
                   <el-dropdown-item v-if="ACTIONS[row.status]?.includes(2)" :command="2">标记完成</el-dropdown-item>
                   <el-dropdown-item v-if="canRefund(row)" command="refund" style="color:#f56c6c">退款</el-dropdown-item>
                   <el-dropdown-item v-if="ACTIONS[row.status]?.includes(3)" :command="3" style="color:#f56c6c">取消订单</el-dropdown-item>
@@ -121,7 +124,8 @@ const keyword = ref("");
 const STATUS_TEXT: Record<number, string> = { 0: '待支付', 1: '待发货', 2: '已完成', 3: '已取消', 4: '已发货' };
 const STATUS_TYPE: Record<number, string> = { 0: 'warning', 1: 'primary', 2: 'success', 3: 'danger', 4: 'info' };
 // 与后端 AdminStatusTransitions 保持一致：已完成/已取消为终态
-const ACTIONS: Record<number, number[]> = { 0: [1, 3], 1: [2, 3], 4: [2, 3] };
+// 待支付不能直接标记已支付：付款只认 NodeLoc，用「同步支付状态」走与回调相同的发卡/结算流程
+const ACTIONS: Record<number, number[]> = { 0: [3], 1: [2, 3], 4: [2, 3] };
 const PAY_METHOD: Record<string, string> = { nodeloc: '能量', balance: '余额', free: '免费' };
 
 const REFUND_METHOD: Record<string, string> = { native: '原路退回', transfer: '转账退回', balance: '退回余额' };
@@ -129,6 +133,9 @@ const REFUND_METHOD: Record<string, string> = { native: '原路退回', transfer
 // 已付款、未退款、非免费的订单可退款（含付款后被取消的订单）
 const canRefund = (row: any) =>
   row.status !== 0 && !!row.paid_at && !row.refunded_at && row.pay_method !== 'free' && row.total_amount > 0;
+// 能量订单尚未记录付款时，可向 NodeLoc 查询（补救丢失的支付回调，或发现取消后才付款的订单）
+const canSync = (row: any) =>
+  (row.status === 0 || row.status === 3) && row.pay_method === 'nodeloc' && !!row.transaction_id && !row.paid_at && !row.refunded_at;
 const refundTip = (row: any) =>
   `${REFUND_METHOD[row.refund_method] ?? row.refund_method ?? ''} ${row.refund_amount}` +
   (row.refunded_at ? ` · ${fmtDate(row.refunded_at)}` : '');
@@ -156,7 +163,18 @@ async function fetchOrders() {
 
 function onCommand(row: any, cmd: number | string) {
   if (cmd === 'refund') refundOrder(row);
+  else if (cmd === 'sync') syncPayment(row);
   else updateStatus(row, cmd as number);
+}
+
+async function syncPayment(row: any) {
+  try {
+    const res = await post<{ message: string }>(`/api/admin/orders/${row.order_no}/sync-payment`);
+    ElMessage({ message: res.message || '已同步', type: 'info', duration: 5000 });
+  } catch (e: any) {
+    ElMessage.error(e?.data?.error || e?.message || "同步失败");
+  }
+  await fetchOrders();
 }
 
 async function refundOrder(row: any) {
@@ -192,6 +210,19 @@ async function updateStatus(row: any, status: number) {
           : `确定取消订单 ${row.order_no}？`,
         '取消订单',
         { type: 'warning', confirmButtonText: '确定取消', cancelButtonText: '返回' },
+      );
+    } catch {
+      return;
+    }
+  }
+  if (status === 2) {
+    const settle = row.shop_id > 0 && !row.shop_settled;
+    try {
+      await ElMessageBox.confirm(
+        `确定将订单 ${row.order_no} 标记为完成？` +
+          (settle ? `第三方店铺订单会把 ${row.total_amount} 结算到店主余额（官方店不结算）。` : ''),
+        '标记完成',
+        { type: 'warning', confirmButtonText: '确定完成', cancelButtonText: '返回' },
       );
     } catch {
       return;

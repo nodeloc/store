@@ -267,6 +267,73 @@ func (s *EmailService) SendNewOrderToShop(order *models.Order, shopOwnerEmail st
 	s.sendAsync([]string{shopOwnerEmail}, "新订单通知 - "+productName, body)
 }
 
+// SendOrderRefunded 退款通知 → 发给买家
+func (s *EmailService) SendOrderRefunded(order *models.Order) {
+	if !s.enabled || order.User == nil || order.User.Email == "" {
+		return
+	}
+	productName := ""
+	if order.Product != nil {
+		productName = order.Product.Name
+	}
+	dest := "你的 NodeLoc 账户"
+	if order.RefundMethod == "balance" {
+		dest = "你的站内余额"
+	}
+	body := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+  <h2 style="color:#e6162d">退款通知</h2>
+  <p>您好，您的订单已退款：</p>
+  <table style="width:100%%;border-collapse:collapse;margin:16px 0">
+    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">订单号</td><td style="padding:8px">%s</td></tr>
+    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">商品</td><td style="padding:8px">%s</td></tr>
+    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">退款金额</td><td style="padding:8px">%g 能量</td></tr>
+    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">退回到</td><td style="padding:8px">%s</td></tr>
+  </table>
+</div>`, html.EscapeString(order.OrderNo), html.EscapeString(productName), order.RefundAmount, dest)
+
+	s.sendAsync([]string{order.User.Email}, "退款通知 - "+productName, body)
+}
+
+// SendOrderNeedsAction 已付款订单需要人工处理 → 发给管理员（及额外收件人，如店主）
+func (s *EmailService) SendOrderNeedsAction(order *models.Order, reason string, extra []string) {
+	if !s.enabled {
+		return
+	}
+	to := append([]string{}, extra...)
+	if s.admin != "" {
+		to = append(to, s.admin)
+	}
+	if len(to) == 0 {
+		return
+	}
+	productName := ""
+	if order.Product != nil {
+		productName = order.Product.Name
+	}
+	buyerName := ""
+	if order.User != nil {
+		buyerName = order.User.Username
+	}
+	body := fmt.Sprintf(`
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+  <h2 style="color:#e6162d">订单需要处理</h2>
+  <p>%s</p>
+  <table style="width:100%%;border-collapse:collapse;margin:16px 0">
+    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">订单号</td><td style="padding:8px">%s</td></tr>
+    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">商品</td><td style="padding:8px">%s</td></tr>
+    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">金额</td><td style="padding:8px">%g 能量</td></tr>
+    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">买家</td><td style="padding:8px">%s</td></tr>
+  </table>
+</div>`, html.EscapeString(reason), html.EscapeString(order.OrderNo), html.EscapeString(productName),
+		order.TotalAmount, html.EscapeString(buyerName))
+
+	// 逐个发送，避免店主看到管理员邮箱
+	for _, addr := range to {
+		s.sendAsync([]string{addr}, "订单需要处理 - "+order.OrderNo, body)
+	}
+}
+
 // SendNewsletterConfirm 订阅确认邮件
 func (s *EmailService) SendNewsletterConfirm(email, siteName string) {
 	if !s.enabled || email == "" {

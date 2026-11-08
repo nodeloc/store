@@ -135,24 +135,6 @@ func (s *OrderService) GetWithPagination(page, pageSize int, status int) ([]mode
 	return orders, total, nil
 }
 
-// MarkAsPaid 标记订单为已支付
-func (s *OrderService) MarkAsPaid(id uint) error {
-	now := time.Now()
-	return database.GetDB().Model(&models.Order{}).
-		Where("id = ?", id).
-		Updates(map[string]interface{}{
-			"status":  models.OrderStatusPaid,
-			"paid_at": now,
-		}).Error
-}
-
-// Complete 完成订单
-func (s *OrderService) Complete(id uint) error {
-	return database.GetDB().Model(&models.Order{}).
-		Where("id = ?", id).
-		Update("status", models.OrderStatusCompleted).Error
-}
-
 // Cancel 取消订单
 func (s *OrderService) Cancel(id uint) error {
 	return database.GetDB().Model(&models.Order{}).
@@ -160,14 +142,17 @@ func (s *OrderService) Cancel(id uint) error {
 		Update("status", models.OrderStatusCancelled).Error
 }
 
-// AdminStatusTransitions 后台可执行的状态流转：已完成/已取消为终态，不可再改
+// AdminStatusTransitions 后台可执行的状态流转：已完成/已取消为终态，不可再改。
+// 待支付 → 已支付 不在此列：付款只能由 NodeLoc 确认（后台用「同步支付」），
+// 直接改状态会跳过发卡和店主结算。
 var AdminStatusTransitions = map[int][]int{
-	models.OrderStatusPending: {models.OrderStatusPaid, models.OrderStatusCancelled},
+	models.OrderStatusPending: {models.OrderStatusCancelled},
 	models.OrderStatusPaid:    {models.OrderStatusCompleted, models.OrderStatusCancelled},
 	models.OrderStatusShipped: {models.OrderStatusCompleted, models.OrderStatusCancelled},
 }
 
-// AdminUpdateStatus 后台改订单状态；以当前状态为条件更新，避免与回调/其它操作并发时覆盖
+// AdminUpdateStatus 后台改订单状态；以当前状态为条件更新，避免与回调/其它操作并发时覆盖。
+// 标记完成与买家确认收货等价：同一事务内结算给店主。
 func (s *OrderService) AdminUpdateStatus(order *models.Order, to int) error {
 	allowed := false
 	for _, st := range AdminStatusTransitions[order.Status] {
@@ -180,20 +165,22 @@ func (s *OrderService) AdminUpdateStatus(order *models.Order, to int) error {
 		return &ServiceError{Message: "当前订单状态不允许此操作"}
 	}
 
-	updates := map[string]interface{}{"status": to}
-	if to == models.OrderStatusPaid {
-		updates["paid_at"] = time.Now()
-	}
-	res := database.GetDB().Model(&models.Order{}).
-		Where("id = ? AND status = ?", order.ID, order.Status).
-		Updates(updates)
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return &ServiceError{Message: "订单状态已变化，请刷新后重试"}
-	}
-	return nil
+	errChanged := &ServiceError{Message: "订单状态已变化，请刷新后重试"}
+	return database.GetDB().Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&models.Order{}).
+			Where("id = ? AND status = ?", order.ID, order.Status).
+			Update("status", to)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errChanged
+		}
+		if to == models.OrderStatusCompleted {
+			return settleShopTx(tx, order, fmt.Sprintf("订单 %s 销售收入（后台完成）", order.OrderNo))
+		}
+		return nil
+	})
 }
 
 // CancelPending 仅取消仍处于待支付的订单；与支付回调并发时不会把已付款订单改成已取消
@@ -320,6 +307,10 @@ func (s *OrderService) ProcessPaymentCallback(transactionID string, amount, plat
 
 	// 幂等：订单已处理则直接返回
 	if order.Status != models.OrderStatusPending {
+		if order.Status == models.OrderStatusCancelled {
+			s.recordPaymentOnCancelled(order, platformFee, merchantPoints)
+			return s.FindByID(order.ID)
+		}
 		return order, nil
 	}
 
@@ -368,6 +359,7 @@ func (s *OrderService) ProcessPaymentCallback(transactionID string, amount, plat
 			UpdateColumn("stock_count", gorm.Expr("GREATEST(stock_count - ?, 0)", order.Quantity)).Error; err != nil {
 			log.Printf("订单 %s 扣减库存失败: %v", order.OrderNo, err)
 		}
+		notifyShopNewOrder(order)
 		return s.FindByID(order.ID)
 	case models.DeliveryTypeFixed:
 		order.Status = models.OrderStatusCompleted
@@ -380,6 +372,7 @@ func (s *OrderService) ProcessPaymentCallback(transactionID string, amount, plat
 	if err != nil {
 		// 已付款但自动发货失败（例如卡密已被抢光）：订单停在"已支付"，店主补货后可手动发货
 		log.Printf("订单 %s 已付款但自动发货失败: %v", order.OrderNo, err)
+		notifyOrderNeedsAction(order, fmt.Sprintf("买家已付款，但自动发货失败（%v）。请店主补货后在店铺后台手动发货，或由管理员退款。", err), true)
 		return nil, err
 	}
 	return s.FindByID(order.ID)
@@ -531,7 +524,6 @@ func (s *OrderService) ConfirmReceipt(orderNo string, userID uint) (*models.Orde
 	}
 
 	errNotShipped := &ServiceError{Message: "订单状态不允许确认收货"}
-	balanceService := NewBalanceService()
 	if err := database.GetDB().Transaction(func(tx *gorm.DB) error {
 		// 带状态条件更新：并发的重复确认只有一个能成功，店主不会被结算两次
 		res := tx.Model(&models.Order{}).
@@ -543,28 +535,7 @@ func (s *OrderService) ConfirmReceipt(orderNo string, userID uint) (*models.Orde
 		if res.RowsAffected == 0 {
 			return errNotShipped
 		}
-		// 结算给卖家
-		if order.ShopID > 0 && !order.ShopSettled {
-			var shop models.Shop
-			if err := tx.First(&shop, order.ShopID).Error; err != nil {
-				return err
-			}
-			if !shop.IsOfficial && shop.UserID > 0 {
-				income := order.TotalAmount
-				if err := balanceService.AddBalance(tx, shop.UserID, income,
-					models.BalanceTxSaleIncome,
-					fmt.Sprintf("订单 %s 销售收入（确认收货）", order.OrderNo),
-					"order", order.ID,
-				); err != nil {
-					return err
-				}
-				return tx.Model(&models.Order{}).Where("id = ?", order.ID).Updates(map[string]interface{}{
-					"shop_settled": true,
-					"shop_income":  income,
-				}).Error
-			}
-		}
-		return nil
+		return settleShopTx(tx, order, fmt.Sprintf("订单 %s 销售收入（确认收货）", order.OrderNo))
 	}); err != nil {
 		return nil, err
 	}

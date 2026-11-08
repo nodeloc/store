@@ -197,6 +197,7 @@ func main() {
 		adminAPIGroup.GET("/orders/:orderNo", adminHandler.GetOrder)
 		adminAPIGroup.PUT("/orders/:orderNo/status", adminHandler.UpdateOrderStatus)
 		adminAPIGroup.POST("/orders/:orderNo/refund", adminHandler.RefundOrder)
+		adminAPIGroup.POST("/orders/:orderNo/sync-payment", adminHandler.SyncOrderPayment)
 
 		// 用户管理
 		adminAPIGroup.GET("/users", adminHandler.GetUsers)

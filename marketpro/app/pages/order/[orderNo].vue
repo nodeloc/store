@@ -23,6 +23,9 @@
             <div v-if="order.refunded_at" class="nl-note">
               <i class="ph ph-arrow-counter-clockwise"></i>订单已退款，{{ order.refund_amount }} 已{{ order.refund_method === 'balance' ? '退回站内余额' : '退回你的 NodeLoc 账户' }}。
             </div>
+            <div v-else-if="order.status === 3 && order.paid_at" class="nl-note">
+              <i class="ph ph-warning-circle"></i>订单已取消，但已收到你的付款，管理员会尽快为你退款。
+            </div>
             <div v-else-if="order.status === 3" class="nl-note">
               <i class="ph ph-x-circle"></i>订单已取消，库存已释放。
             </div>

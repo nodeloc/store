@@ -473,6 +473,24 @@ func (h *AdminHandler) UpdateOrderStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
 }
 
+// SyncOrderPayment 向 NodeLoc 查询订单支付状态，已付款则按支付回调同样处理（发卡/结算或记为待退款）
+func (h *AdminHandler) SyncOrderPayment(c *gin.Context) {
+	orderNo := c.Param("orderNo")
+	order, msg, err := h.orderService.AdminSyncPayment(orderNo)
+	if err != nil {
+		var se *services.ServiceError
+		if errors.As(err, &se) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": se.Message})
+			return
+		}
+		log.Printf("订单 %s 同步支付失败: %v", orderNo, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "同步支付失败"})
+		return
+	}
+	log.Printf("订单 %s 后台同步支付: %s", orderNo, msg)
+	c.JSON(http.StatusOK, gin.H{"message": msg, "order": order})
+}
+
 // RefundOrder 全额退款（能量原路退回/转账退回，余额支付退回余额），退款后订单置为已取消
 func (h *AdminHandler) RefundOrder(c *gin.Context) {
 	orderNo := c.Param("orderNo")
